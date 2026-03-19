@@ -775,6 +775,7 @@ function SproutLeadEngine() {
     if (!readyToSend.length) return;
 
     autoSendRef.current = true;
+    lsSet(SK.lastAuto, todayStr()); // stamp BEFORE sending — prevents double-fire on reload
     const delay = setTimeout(() => {
       addLog("🤖 Auto-send triggered — sending today's batch...", "info");
       sendDailyBatch(true);
@@ -941,10 +942,61 @@ Return ONLY valid JSON, no markdown.`,
     setBusy(null);
   }
 
+  // ── Email validation: check if domain has MX records ─
+  async function verifyEmailDomain(email) {
+    if (!email) return { valid: false, reason: "No email address" };
+    const domain = email.split("@")[1];
+    if (!domain) return { valid: false, reason: "Invalid email format" };
+
+    // Known good domains — skip API check
+    const trustedDomains = ["gmail.com","yahoo.com","hotmail.com","outlook.com","icloud.com","me.com","yahoo.in","rediffmail.com"];
+    if (trustedDomains.includes(domain.toLowerCase())) {
+      // For Gmail/Yahoo — still check if it looks AI-generated
+      // Pattern: businessname+citynamevizag/guwahati etc @gmail.com are often fake
+      const localPart = email.split("@")[0].toLowerCase();
+      const fakePatterns = ["vizag","guwahati","delhi","mumbai","bangalore","bengaluru","chennai","kolkata","hyderabad","pune","jaipur"];
+      const looksGenerated = fakePatterns.some(p => localPart.includes(p));
+      if (looksGenerated) return { valid: false, reason: `Likely AI-generated address (contains city name in local part)` };
+      return { valid: true, reason: "Trusted domain" };
+    }
+
+    // For custom domains — check MX records via dns.google API
+    try {
+      const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`, {
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) return { valid: true, reason: "DNS check failed — allowing" }; // fail open
+      const data = await res.json();
+      if (data.Answer && data.Answer.length > 0) return { valid: true, reason: `MX records found for ${domain}` };
+      return { valid: false, reason: `No MX records for ${domain} — domain cannot receive email` };
+    } catch {
+      return { valid: true, reason: "DNS check error — allowing" }; // fail open
+    }
+  }
+
   // ── STEP 4: Compose + Queue Email ─────────────────
   async function composeEmail(leadId) {
     const lead = leads.find(l => l.id === leadId);
     if (!lead?.report || busy) return;
+
+    // Verify email before composing
+    if (!lead.email) {
+      addLog(`⚠️ ${lead.name} — no email address, skipping`, "warn");
+      setBusy(null);
+      return;
+    }
+    setBusy(`Verifying email for ${lead.name}...`);
+    const check = await verifyEmailDomain(lead.email);
+    if (!check.valid) {
+      addLog(`❌ ${lead.name} — email rejected: ${check.reason}`, "error");
+      // Mark lead as invalid so it shows in UI
+      const updLeads = leads.map(l => l.id === leadId ? { ...l, emailStatus: "invalid" } : l);
+      setLeads(updLeads); save(SK.leads, updLeads);
+      setBusy(null);
+      return;
+    }
+    addLog(`✅ Email verified for ${lead.name} (${check.reason})`, "info");
+
     setBusy(`Composing email for ${lead.name}...`);
     addLog(`✉️ Composing outreach email: ${lead.name}`, "email");
     try {
@@ -1702,14 +1754,14 @@ Return ONLY JSON: { subject: string, body: string }`,
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════════════
 function LeadCard({ lead, busy, onAudit, onReport, onEmail, expanded, onToggle }) {
-  const emailStatusColor = lead.emailStatus === "sent" ? C.green : lead.emailStatus === "queued" ? C.warn : C.muted;
+  const emailStatusColor = lead.emailStatus === "sent" ? C.green : lead.emailStatus === "queued" ? C.warn : lead.emailStatus === "invalid" ? C.err : C.muted;
   return (
     <Card style={{ cursor:"pointer" }}>
       <div onClick={onToggle} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display:"flex", alignItems:"center", gap: 8, flexWrap:"wrap", marginBottom: 3 }}>
             <span style={{ color: C.accent, fontWeight:"bold" }}>{lead.name}</span>
-            {lead.emailStatus !== "none" && <Badge label={lead.emailStatus.toUpperCase()} color={emailStatusColor} />}
+            {lead.emailStatus !== "none" && <Badge label={lead.emailStatus === "invalid" ? "❌ INVALID EMAIL" : lead.emailStatus.toUpperCase()} color={emailStatusColor} />}
             {lead.audit && <Badge label={`${lead.audit.overallScore}/10`} color={lead.audit.overallScore >= 7 ? C.green : lead.audit.overallScore >= 4 ? C.warn : C.err} />}
           </div>
           <div style={{ fontSize: 11, color: C.muted }}>{lead.type} · Est. size: {lead.estimatedSize}</div>
@@ -1755,7 +1807,7 @@ function LeadCard({ lead, busy, onAudit, onReport, onEmail, expanded, onToggle }
               {lead.report ? "✓ Report Done" : "📄 Gen Report"}
             </Btn>
             <Btn size="sm" onClick={onEmail} disabled={!!busy || !lead.report || lead.emailStatus !== "none"} variant="ghost">
-              {lead.emailStatus !== "none" ? `✓ ${lead.emailStatus}` : "✉️ Queue Email"}
+              {lead.emailStatus === "invalid" ? "❌ Invalid Email" : lead.emailStatus !== "none" ? `✓ ${lead.emailStatus}` : "✉️ Queue Email"}
             </Btn>
           </div>
         </div>
