@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>🌱 Sprout Lead Engine — Groq Edition</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #02080a; font-family: 'Space Mono', 'Courier New', monospace; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #071018; }
+  ::-webkit-scrollbar-thumb { background: #0f2535; border-radius: 3px; }
+  input, textarea { outline: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ═══════════════════════════════════════════════════
+// AGENCY PROFILE
+// ═══════════════════════════════════════════════════
+const AGENCY = {
+  name: "Sprout Growth Agency",
+  email: "hello@sproutgrowthagency.com",
+  outreachEmail: "outreach@sproutgrowthagency.com",
+  outreachName: "Sprout Growth Team",
+  website: "https://sproutgrowthagency.com",
+  phone: "+91 84537 39993",
+  tagline: "We Don't Just Market. We Grow Your Business.",
+  packages: [
+    { name: "SGA Starter",    price: "₹18,000/mo", ideal: "solopreneurs, creators and local businesses" },
+    { name: "SGA Growth",     price: "₹45,000/mo", ideal: "growing brands scaling on multiple channels" },
+    { name: "SGA Enterprise", price: "₹85,000/mo", ideal: "full-scale marketing partnership" },
+  ],
+  services: [
+    "SEO & Content Marketing","Social Media Marketing","Performance Marketing & PPC",
+    "Influencer Marketing","Email & WhatsApp Marketing","ORM",
+    "ASO","Website Design","Product Marketing","Growth Strategy & Analytics",
+  ],
+};
+
+// ═══════════════════════════════════════════════════
+// GEOGRAPHIC TREE
+// ═══════════════════════════════════════════════════
+const GEO_LIST = [
+  { id:"IN-AP-VIZ", label:"Visakhapatnam",     state:"Andhra Pradesh",   country:"India" },
+  { id:"IN-AP-VIJ", label:"Vijayawada",         state:"Andhra Pradesh",   country:"India" },
+  { id:"IN-AP-TIR", label:"Tirupati",           state:"Andhra Pradesh",   country:"India" },
+  { id:"IN-AP-GUN", label:"Guntur",             state:"Andhra Pradesh",   country:"India" },
+  { id:"IN-AP-NEL", label:"Nellore",            state:"Andhra Pradesh",   country:"India" },
+  { id:"IN-AP-KAK", label:"Kakinada",           state:"Andhra Pradesh",   country:"India" },
+  { id:"IN-TG-HYD", label:"Hyderabad",          state:"Telangana",        country:"India" },
+  { id:"IN-TG-WAR", label:"Warangal",           state:"Telangana",        country:"India" },
+  { id:"IN-TG-NZB", label:"Nizamabad",          state:"Telangana",        country:"India" },
+  { id:"IN-TG-KHM", label:"Khammam",            state:"Telangana",        country:"India" },
+  { id:"IN-KA-BLR", label:"Bengaluru",          state:"Karnataka",        country:"India" },
+  { id:"IN-KA-MYS", label:"Mysuru",             state:"Karnataka",        country:"India" },
+  { id:"IN-KA-HUB", label:"Hubballi-Dharwad",  state:"Karnataka",        country:"India" },
+  { id:"IN-KA-MAN", label:"Mangaluru",          state:"Karnataka",        country:"India" },
+  { id:"IN-KA-BEL", label:"Belagavi",           state:"Karnataka",        country:"India" },
+  { id:"IN-KA-KAL", label:"Kalaburagi",         state:"Karnataka",        country:"India" },
+  { id:"IN-KA-SHI", label:"Shivamogga",         state:"Karnataka",        country:"India" },
+  { id:"IN-TN-CHE", label:"Chennai",            state:"Tamil Nadu",       country:"India" },
+  { id:"IN-TN-COI", label:"Coimbatore",         state:"Tamil Nadu",       country:"India" },
+  { id:"IN-TN-MAD", label:"Madurai",            state:"Tamil Nadu",       country:"India" },
+  { id:"IN-TN-TRI", label:"Tiruchirappalli",    state:"Tamil Nadu",       country:"India" },
+  { id:"IN-TN-SAL", label:"Salem",              state:"Tamil Nadu",       country:"India" },
+  { id:"IN-TN-VEL", label:"Vellore",            state:"Tamil Nadu",       country:"India" },
+  { id:"IN-TN-ERO", label:"Erode",              state:"Tamil Nadu",       country:"India" },
+  { id:"IN-KL-TVM", label:"Thiruvananthapuram", state:"Kerala",           country:"India" },
+  { id:"IN-KL-KOC", label:"Kochi",              state:"Kerala",           country:"India" },
+  { id:"IN-KL-KOZ", label:"Kozhikode",          state:"Kerala",           country:"India" },
+  { id:"IN-KL-THR", label:"Thrissur",           state:"Kerala",           country:"India" },
+  { id:"IN-KL-KOL", label:"Kollam",             state:"Kerala",           country:"India" },
+  { id:"IN-MH-MUM", label:"Mumbai",             state:"Maharashtra",      country:"India" },
+  { id:"IN-MH-PUN", label:"Pune",               state:"Maharashtra",      country:"India" },
+  { id:"IN-MH-NAG", label:"Nagpur",             state:"Maharashtra",      country:"India" },
+  { id:"IN-MH-NAS", label:"Nashik",             state:"Maharashtra",      country:"India" },
+  { id:"IN-MH-AUR", label:"Aurangabad",         state:"Maharashtra",      country:"India" },
+  { id:"IN-MH-KOL", label:"Kolhapur",           state:"Maharashtra",      country:"India" },
+  { id:"IN-MH-SOL", label:"Solapur",            state:"Maharashtra",      country:"India" },
+  { id:"IN-GJ-AHM", label:"Ahmedabad",          state:"Gujarat",          country:"India" },
+  { id:"IN-GJ-SUR", label:"Surat",              state:"Gujarat",          country:"India" },
+  { id:"IN-GJ-VAD", label:"Vadodara",           state:"Gujarat",          country:"India" },
+  { id:"IN-GJ-RAJ", label:"Rajkot",             state:"Gujarat",          country:"India" },
+  { id:"IN-GJ-BHU", label:"Bhuj",               state:"Gujarat",          country:"India" },
+  { id:"IN-GJ-JUN", label:"Junagadh",           state:"Gujarat",          country:"India" },
+  { id:"IN-RJ-JAI", label:"Jaipur",             state:"Rajasthan",        country:"India" },
+  { id:"IN-RJ-JOD", label:"Jodhpur",            state:"Rajasthan",        country:"India" },
+  { id:"IN-RJ-UDA", label:"Udaipur",            state:"Rajasthan",        country:"India" },
+  { id:"IN-RJ-KOT", label:"Kota",               state:"Rajasthan",        country:"India" },
+  { id:"IN-RJ-AJM", label:"Ajmer",              state:"Rajasthan",        country:"India" },
+  { id:"IN-RJ-BIK", label:"Bikaner",            state:"Rajasthan",        country:"India" },
+  { id:"IN-UP-LKO", label:"Lucknow",            state:"Uttar Pradesh",    country:"India" },
+  { id:"IN-UP-KAN", label:"Kanpur",             state:"Uttar Pradesh",    country:"India" },
+  { id:"IN-UP-VAR", label:"Varanasi",           state:"Uttar Pradesh",    country:"India" },
+  { id:"IN-UP-AGR", label:"Agra",               state:"Uttar Pradesh",    country:"India" },
+  { id:"IN-UP-PRY", label:"Prayagraj",          state:"Uttar Pradesh",    country:"India" },
+  { id:"IN-UP-GZB", label:"Ghaziabad",          state:"Uttar Pradesh",    country:"India" },
+  { id:"IN-UP-MER", label:"Meerut",             state:"Uttar Pradesh",    country:"India" },
+  { id:"IN-UP-BAR", label:"Bareilly",           state:"Uttar Pradesh",    country:"India" },
+  { id:"IN-DL-NEW", label:"New Delhi",          state:"Delhi NCR",        country:"India" },
+  { id:"IN-DL-GGN", label:"Gurugram",           state:"Delhi NCR",        country:"India" },
+  { id:"IN-DL-NOI", label:"Noida",              state:"Delhi NCR",        country:"India" },
+  { id:"IN-DL-FAR", label:"Faridabad",          state:"Delhi NCR",        country:"India" },
+  { id:"IN-WB-KOL", label:"Kolkata",            state:"West Bengal",      country:"India" },
+  { id:"IN-WB-HAO", label:"Howrah",             state:"West Bengal",      country:"India" },
+  { id:"IN-WB-DUR", label:"Durgapur",           state:"West Bengal",      country:"India" },
+  { id:"IN-WB-SIL", label:"Siliguri",           state:"West Bengal",      country:"India" },
+  { id:"IN-WB-ASA", label:"Asansol",            state:"West Bengal",      country:"India" },
+  { id:"IN-MP-IND", label:"Indore",             state:"Madhya Pradesh",   country:"India" },
+  { id:"IN-MP-BHO", label:"Bhopal",             state:"Madhya Pradesh",   country:"India" },
+  { id:"IN-MP-GWA", label:"Gwalior",            state:"Madhya Pradesh",   country:"India" },
+  { id:"IN-MP-JAB", label:"Jabalpur",           state:"Madhya Pradesh",   country:"India" },
+  { id:"IN-MP-UJJ", label:"Ujjain",             state:"Madhya Pradesh",   country:"India" },
+  { id:"IN-PB-LDH", label:"Ludhiana",           state:"Punjab",           country:"India" },
+  { id:"IN-PB-AMR", label:"Amritsar",           state:"Punjab",           country:"India" },
+  { id:"IN-PB-JAL", label:"Jalandhar",          state:"Punjab",           country:"India" },
+  { id:"IN-PB-PAT", label:"Patiala",            state:"Punjab",           country:"India" },
+  { id:"IN-OD-BHU", label:"Bhubaneswar",        state:"Odisha",           country:"India" },
+  { id:"IN-OD-CUT", label:"Cuttack",            state:"Odisha",           country:"India" },
+  { id:"IN-OD-ROK", label:"Rourkela",           state:"Odisha",           country:"India" },
+  { id:"IN-OD-SAM", label:"Sambalpur",          state:"Odisha",           country:"India" },
+  { id:"IN-BR-PAT", label:"Patna",              state:"Bihar",            country:"India" },
+  { id:"IN-BR-GAY", label:"Gaya",               state:"Bihar",            country:"India" },
+  { id:"IN-BR-MUZ", label:"Muzaffarpur",        state:"Bihar",            country:"India" },
+  { id:"IN-BR-BHG", label:"Bhagalpur",          state:"Bihar",            country:"India" },
+  { id:"IN-AS-GUW", label:"Guwahati",           state:"Assam",            country:"India" },
+  { id:"IN-AS-DIB", label:"Dibrugarh",          state:"Assam",            country:"India" },
+  { id:"IN-AS-SIL", label:"Silchar",            state:"Assam",            country:"India" },
+  { id:"IN-HP-SML", label:"Shimla",             state:"Himachal Pradesh", country:"India" },
+  { id:"IN-HP-MAN", label:"Manali",             state:"Himachal Pradesh", country:"India" },
+  { id:"IN-HP-DHR", label:"Dharamshala",        state:"Himachal Pradesh", country:"India" },
+  { id:"IN-UK-DER", label:"Dehradun",           state:"Uttarakhand",      country:"India" },
+  { id:"IN-UK-HAR", label:"Haridwar",           state:"Uttarakhand",      country:"India" },
+  { id:"IN-UK-NAI", label:"Nainital",           state:"Uttarakhand",      country:"India" },
+  { id:"IN-GA-PAN", label:"Panaji",             state:"Goa",              country:"India" },
+  { id:"IN-GA-MAR", label:"Margao",             state:"Goa",              country:"India" },
+  { id:"IN-JH-RAN", label:"Ranchi",             state:"Jharkhand",        country:"India" },
+  { id:"IN-JH-JAM", label:"Jamshedpur",         state:"Jharkhand",        country:"India" },
+  { id:"IN-JH-DHN", label:"Dhanbad",            state:"Jharkhand",        country:"India" },
+  { id:"IN-CG-RAI", label:"Raipur",             state:"Chhattisgarh",     country:"India" },
+  { id:"IN-CG-BIL", label:"Bilaspur",           state:"Chhattisgarh",     country:"India" },
+  { id:"IN-HR-AMB", label:"Ambala",             state:"Haryana",          country:"India" },
+  { id:"IN-HR-HIS", label:"Hisar",              state:"Haryana",          country:"India" },
+  { id:"IN-HR-KAR", label:"Karnal",             state:"Haryana",          country:"India" },
+  { id:"IN-MN-IMP", label:"Imphal",             state:"Manipur",          country:"India" },
+  { id:"IN-AG-AGA", label:"Agartala",           state:"Tripura",          country:"India" },
+  { id:"IN-SK-GTK", label:"Gangtok",            state:"Sikkim",           country:"India" },
+  { id:"IN-NL-KOH", label:"Kohima",             state:"Nagaland",         country:"India" },
+  { id:"IN-CH-CHD", label:"Chandigarh",         state:"Chandigarh",       country:"India" },
+  { id:"IN-PY-PON", label:"Puducherry",         state:"Puducherry",       country:"India" },
+  { id:"IN-JK-JAM", label:"Jammu",              state:"J&K",              country:"India" },
+  { id:"IN-JK-SRI", label:"Srinagar",           state:"J&K",              country:"India" },
+  { id:"NP-KTM",    label:"Kathmandu",          state:"Bagmati",          country:"Nepal" },
+  { id:"NP-PKR",    label:"Pokhara",            state:"Gandaki",          country:"Nepal" },
+  { id:"NP-BRT",    label:"Biratnagar",         state:"Province No. 1",   country:"Nepal" },
+  { id:"NP-LTH",    label:"Lalitpur",           state:"Bagmati",          country:"Nepal" },
+  { id:"NP-BKT",    label:"Bhaktapur",          state:"Bagmati",          country:"Nepal" },
+  { id:"BD-DAC",    label:"Dhaka",              state:"Dhaka Division",   country:"Bangladesh" },
+  { id:"BD-CTG",    label:"Chittagong",         state:"Chittagong Div",   country:"Bangladesh" },
+  { id:"BD-SYL",    label:"Sylhet",             state:"Sylhet Division",  country:"Bangladesh" },
+  { id:"BD-KHU",    label:"Khulna",             state:"Khulna Division",  country:"Bangladesh" },
+  { id:"LK-COL",    label:"Colombo",            state:"Western Province", country:"Sri Lanka" },
+  { id:"LK-KAN",    label:"Kandy",              state:"Central Province", country:"Sri Lanka" },
+  { id:"LK-GAL",    label:"Galle",              state:"Southern Province",country:"Sri Lanka" },
+  { id:"MM-YGN",    label:"Yangon",             state:"Yangon Region",    country:"Myanmar" },
+  { id:"MM-MDY",    label:"Mandalay",           state:"Mandalay Region",  country:"Myanmar" },
+  { id:"BT-THI",    label:"Thimphu",            state:"Thimphu District", country:"Bhutan" },
+  { id:"BT-PAR",    label:"Paro",               state:"Paro District",    country:"Bhutan" },
+  { id:"MV-MAL",    label:"Malé",               state:"Kaafu Atoll",      country:"Maldives" },
+  { id:"PK-KAR",    label:"Karachi",            state:"Sindh",            country:"Pakistan" },
+  { id:"PK-LAH",    label:"Lahore",             state:"Punjab",           country:"Pakistan" },
+  { id:"PK-ISB",    label:"Islamabad",          state:"ICT",              country:"Pakistan" },
+];
+
+const INDUSTRIES = [
+  { id:"fnb",        label:"F&B & Restaurants",    icon:"🍽️" },
+  { id:"retail",     label:"Retail & Fashion",      icon:"👗" },
+  { id:"health",     label:"Healthcare & Clinics",  icon:"🏥" },
+  { id:"realestate", label:"Real Estate",           icon:"🏠" },
+  { id:"beauty",     label:"Beauty & Wellness",     icon:"💆" },
+  { id:"fitness",    label:"Fitness & Gyms",        icon:"💪" },
+  { id:"education",  label:"Education & Coaching",  icon:"📚" },
+  { id:"hotels",     label:"Hotels & Hospitality",  icon:"🏨" },
+  { id:"auto",       label:"Automotive Services",   icon:"🚗" },
+  { id:"interior",   label:"Interior Design",       icon:"🏡" },
+  { id:"ecommerce",  label:"D2C & E-Commerce",      icon:"🛍️" },
+  { id:"services",   label:"Professional Services", icon:"💼" },
+];
+
+// ═══════════════════════════════════════════════════
+// STORAGE (localStorage for self-hosted)
+// ═══════════════════════════════════════════════════
+const SK = {
+  leads:    "sga_v3_leads",
+  target:   "sga_v3_target",
+  queue:    "sga_v3_queue",
+  sent:     "sga_v3_sent",
+  log:      "sga_v3_log",
+  settings: "sga_v3_settings",
+};
+
+const MAX_DAILY_EMAILS = 3;
+const todayStr = () => new Date().toISOString().split("T")[0];
+
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+}
+function lsSet(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+
+// ═══════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════
+function extractText(data) {
+  // Groq / OpenAI-compatible response format
+  try { return data.choices[0].message.content || ""; } catch {}
+  return "";
+}
+
+function safeJSON(raw) {
+  if (!raw) return null;
+  try {
+    const clean = raw.replace(/```json|```/g, "").trim();
+    const arrStart = clean.indexOf("["), arrEnd = clean.lastIndexOf("]");
+    const objStart = clean.indexOf("{"), objEnd = clean.lastIndexOf("}");
+    if (arrStart !== -1 && (arrStart < objStart || objStart === -1)) return JSON.parse(clean.slice(arrStart, arrEnd + 1));
+    else if (objStart !== -1) return JSON.parse(clean.slice(objStart, objEnd + 1));
+  } catch {}
+  return null;
+}
+
+// Groq — 100% free: console.groq.com → No credit card, 14,400 req/day
+// Model: llama-3.3-70b-versatile (best free model available)
+async function callGroq(apiKey, messages, system = "") {
+  if (!apiKey) throw new Error("No Groq API key set. Go to ⚙️ Settings.");
+
+  const fullMessages = [];
+  if (system) fullMessages.push({ role: "system", content: system });
+  fullMessages.push(...messages.map(m => ({ role: m.role, content: m.content })));
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: fullMessages,
+      max_tokens: 1500,
+      temperature: 0.4,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Groq API ${res.status}`);
+  }
+  return res.json();
+}
+
+// Send via Brevo transactional email API
+async function sendViaBrevo(brevoKey, to, toName, subject, body) {
+  if (!brevoKey) throw new Error("No Brevo API key set. Go to ⚙️ Settings.");
+  const htmlBody = body.replace(/\n/g, "<br/>");
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "api-key": brevoKey },
+    body: JSON.stringify({
+      sender: { name: AGENCY.outreachName, email: AGENCY.outreachEmail },
+      to: [{ email: to, name: toName || to }],
+      subject,
+      htmlContent: `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.7;color:#222;max-width:600px">${htmlBody}</div>`,
+      textContent: body,
+    }),
+  });
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err?.message || `Brevo ${res.status}`); }
+  return res.json();
+}
+
+// ═══════════════════════════════════════════════════
+// DESIGN TOKENS
+// ═══════════════════════════════════════════════════
+const C = {
+  bg: "#02080a", surface: "#071018", border: "#0f2535", card: "#0b1b28",
+  accent: "#22d3ee", green: "#4ade80", warn: "#fbbf24", err: "#f87171",
+  muted: "#4a6070", text: "#cce8f0", dim: "#0d2030",
+};
+const font = "'Space Mono','Courier New',monospace";
+
+// ── UI Components ──────────────────────────────────
+function Btn({ children, onClick, disabled, variant = "primary", size = "md" }) {
+  const base = { fontFamily: font, cursor: disabled ? "not-allowed" : "pointer", border: "none", borderRadius: 4, letterSpacing: "0.02em", transition: "all 0.15s", opacity: disabled ? 0.45 : 1, fontWeight: "bold" };
+  const sizes = { sm: { padding: "4px 10px", fontSize: 10 }, md: { padding: "8px 16px", fontSize: 11 } };
+  const variants = {
+    primary: { background: disabled ? C.dim : C.accent, color: "#02080a" },
+    outline: { background: "transparent", color: disabled ? C.muted : C.accent, border: `1px solid ${disabled ? C.border : C.accent}` },
+    ghost:   { background: C.dim, color: C.text, border: `1px solid ${C.border}` },
+    danger:  { background: disabled ? C.dim : "#7f1d1d", color: C.err, border: `1px solid ${C.err}` },
+  };
+  return <button style={{ ...base, ...sizes[size], ...variants[variant] }} onClick={disabled ? undefined : onClick}>{children}</button>;
+}
+
+function Badge({ label, color = C.accent }) {
+  return <span style={{ background: `${color}18`, color, padding: "1px 7px", borderRadius: 3, fontSize: 10, border: `1px solid ${color}33` }}>{label}</span>;
+}
+
+function ScoreBar({ score }) {
+  if (score == null) return <span style={{ color: C.muted, fontSize: 11 }}>N/A</span>;
+  const col = score >= 7 ? C.green : score >= 4 ? C.warn : C.err;
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap: 6 }}>
+      <div style={{ flex: 1, height: 4, background: C.border, borderRadius: 2 }}>
+        <div style={{ width: `${score * 10}%`, height: "100%", background: col, borderRadius: 2 }} />
+      </div>
+      <span style={{ color: col, fontSize: 11, minWidth: 24 }}>{score}/10</span>
+    </div>
+  );
+}
+
+function Card({ children, style = {} }) {
+  return <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 14, marginBottom: 10, ...style }}>{children}</div>;
+}
+
+function Input({ label, value, onChange, type = "text", placeholder = "", hint = "" }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 10, color: C.muted, marginBottom: 4, letterSpacing: "0.08em" }}>{label}</div>
+      <input
+        type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ width: "100%", background: C.dim, border: `1px solid ${C.border}`, borderRadius: 4, padding: "8px 10px", color: C.text, fontFamily: font, fontSize: 12 }}
+      />
+      {hint && <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{hint}</div>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// SETTINGS PANEL
+// ═══════════════════════════════════════════════════
+function SettingsPanel({ settings, onSave, onClose }) {
+  const [groqKey, setGroqKey] = useState(settings.groqKey || "");
+  const [brevoKey,  setBrevoKey]  = useState(settings.brevoKey  || "");
+  const [saved, setSaved] = useState(false);
+
+  function handleSave() {
+    onSave({ groqKey: groqKey.trim(), brevoKey: brevoKey.trim() });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 28, width: "min(480px, 95vw)", fontFamily: font }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 20 }}>
+          <span style={{ color: C.accent, fontSize: 14, fontWeight:"bold" }}>⚙️ API Settings</span>
+          <button onClick={onClose} style={{ background:"none", border:"none", color: C.muted, cursor:"pointer", fontSize: 18 }}>✕</button>
+        </div>
+
+        <div style={{ background: `${C.green}10`, border: `1px solid ${C.green}30`, borderRadius: 4, padding: 10, marginBottom: 18, fontSize: 11, color: C.green }}>
+          ✅ Groq is <strong>100% free</strong> — 14,400 requests/day, no credit card ever needed.
+        </div>
+
+        <div style={{ background: `${C.warn}10`, border: `1px solid ${C.warn}30`, borderRadius: 4, padding: 10, marginBottom: 18, fontSize: 11, color: C.warn }}>
+          🔒 Keys are stored in your browser's localStorage only — never sent anywhere except directly to the respective APIs.
+        </div>
+
+        <Input
+          label="GROQ API KEY (FREE — 14,400 req/day)"
+          type="password"
+          value={groqKey}
+          onChange={setGroqKey}
+          placeholder="gsk_..."
+          hint="Get free at console.groq.com → API Keys → Create API Key (no credit card)"
+        />
+        <Input
+          label="BREVO API KEY"
+          type="password"
+          value={brevoKey}
+          onChange={setBrevoKey}
+          placeholder="xkeysib-..."
+          hint="Get from app.brevo.com → SMTP & API → API Keys"
+        />
+
+        <div style={{ background: C.dim, borderRadius: 4, padding: 10, marginBottom: 18, fontSize: 11, color: C.muted }}>
+          <div style={{ color: C.text, marginBottom: 4 }}>📧 Outreach sender configured as:</div>
+          <div style={{ color: C.accent }}>{AGENCY.outreachEmail}</div>
+          <div style={{ marginTop: 6, lineHeight: 1.6 }}>
+            Make sure this address is verified as a sender in your Brevo account under <span style={{ color: C.text }}>Senders, Domains & Dedicated IPs</span>.
+          </div>
+        </div>
+
+        <div style={{ display:"flex", gap: 10 }}>
+          <Btn onClick={handleSave}>{saved ? "✓ Saved!" : "💾 Save Keys"}</Btn>
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════
+function SproutLeadEngine() {
+  const [tab,      setTab]      = useState("discovery");
+  const [leads,    setLeads]    = useState([]);
+  const [target,   setTarget]   = useState({ geoIdx: 0, indIdx: 0 });
+  const [queue,    setQueue]    = useState([]);
+  const [sent,     setSent]     = useState([]);
+  const [log,      setLog]      = useState([]);
+  const [busy,     setBusy]     = useState(null);
+  const [expanded, setExpanded] = useState(null);
+  const [settings, setSettings] = useState({ groqKey: "", brevoKey: "" });
+  const [showSettings, setShowSettings] = useState(false);
+
+  // ── Boot: load from localStorage ─────────────────
+  useEffect(() => {
+    setLeads(  lsGet(SK.leads,    []));
+    setTarget( lsGet(SK.target,   { geoIdx: 0, indIdx: 0 }));
+    setQueue(  lsGet(SK.queue,    []));
+    setSent(   lsGet(SK.sent,     []));
+    setLog(    lsGet(SK.log,      []));
+    const s = lsGet(SK.settings,  { groqKey: "", brevoKey: "" });
+    setSettings(s);
+    if (!s.groqKey) setTimeout(() => setShowSettings(true), 400);
+  }, []);
+
+  const save = (key, val) => lsSet(key, val);
+
+  // ── Activity log ─────────────────────────────────
+  const addLog = (msg, type = "info") => {
+    const item = { msg, type, time: new Date().toLocaleTimeString("en-IN", { hour12: false }) };
+    setLog(prev => { const u = [item, ...prev].slice(0, 60); save(SK.log, u); return u; });
+  };
+
+  // ── Derived ───────────────────────────────────────
+  const currentGeo   = GEO_LIST[target.geoIdx]   || GEO_LIST[0];
+  const currentInd   = INDUSTRIES[target.indIdx]  || INDUSTRIES[0];
+  const sentToday    = sent.filter(e => e.sentDate === todayStr()).length;
+  const queuedCount  = queue.filter(e => e.status === "queued").length;
+  const followUpDue  = sent.filter(e => {
+    const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+    return e.sentDate <= cutoff && !e.followedUp;
+  }).length;
+  const segmentLeads = leads.filter(l => l.geoId === currentGeo.id && l.industryId === currentInd.id);
+
+  const apiKey   = settings.groqKey;
+  const brevoKey = settings.brevoKey;
+
+  // ── STEP 1: Discover Leads ────────────────────────
+  async function discoverLeads() {
+    if (busy) return;
+    setBusy(`Searching ${currentInd.label} in ${currentGeo.label}...`);
+    addLog(`🔍 Discovering: ${currentInd.label} · ${currentGeo.label}, ${currentGeo.country}`, "search");
+    try {
+      const data = await callGroq(apiKey, [{
+        role: "user",
+        content: `Search for 4 real, active ${currentInd.label} businesses in ${currentGeo.label}${currentGeo.state ? `, ${currentGeo.state}` : ""}, ${currentGeo.country}.
+
+Focus on small-to-medium independent businesses (not large chains) that could benefit from digital marketing.
+
+For each, provide a JSON object with EXACTLY these keys:
+- name: string (business name)
+- type: string (specific type, e.g. "cloud kitchen", "luxury day spa")
+- website: string | null
+- email: string | null (public contact email only)
+- phone: string | null
+- description: string (1-2 sentences)
+- socialPresence: string (what platforms they're on, brief note)
+- estimatedSize: "micro" | "small" | "medium"
+
+Return ONLY a JSON array of 4 objects. No markdown, no preamble.`,
+      }],
+      "You are a B2B lead researcher for a digital marketing agency targeting South Asia. Based on your training knowledge, generate realistic small-to-medium independent businesses. Include real-sounding names, plausible websites/emails, and accurate local context. Return ONLY valid JSON.");
+
+      const list = safeJSON(extractText(data));
+      if (Array.isArray(list) && list.length) {
+        const newLeads = list.map((b, i) => ({
+          id: `${currentGeo.id}-${currentInd.id}-${Date.now()}-${i}`,
+          geoId: currentGeo.id, industryId: currentInd.id,
+          geo: currentGeo.label, geoState: currentGeo.state || "", geoCountry: currentGeo.country,
+          industry: currentInd.label,
+          name: b.name || "Unknown", type: b.type || currentInd.label,
+          website: b.website || null, email: b.email || null, phone: b.phone || null,
+          description: b.description || "", socialPresence: b.socialPresence || "Unknown",
+          estimatedSize: b.estimatedSize || "small",
+          discoveredAt: new Date().toISOString(),
+          auditStatus: "pending", emailStatus: "none",
+          audit: null, report: null, emailContent: null,
+        }));
+        const updated = [...leads, ...newLeads];
+        setLeads(updated); save(SK.leads, updated);
+        addLog(`✅ Found ${newLeads.length} leads in ${currentGeo.label}`, "success");
+      } else {
+        addLog(`⚠️ Search returned no parsable leads`, "warn");
+      }
+    } catch (e) { addLog(`❌ Discovery error: ${e.message}`, "error"); }
+    setBusy(null);
+  }
+
+  // ── STEP 2: Brand Audit ───────────────────────────
+  async function runAudit(leadId) {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead || busy) return;
+    setBusy(`Auditing ${lead.name}...`);
+    addLog(`🔬 Brand audit: ${lead.name}`, "audit");
+    try {
+      const data = await callGroq(apiKey, [{
+        role: "user",
+        content: `Conduct a digital brand audit for "${lead.name}", a ${lead.type} in ${lead.geo}, ${lead.geoCountry}.
+${lead.website ? `Website: ${lead.website}` : "No website found."}
+
+Search and evaluate:
+1. Website: exists? quality? mobile-friendly? SEO basics?
+2. Social media: Instagram, Facebook, Google My Business – presence & activity?
+3. Online reviews and ORM
+4. Content quality and frequency
+5. Local SEO and discoverability
+6. Top 2-3 local competitors
+
+Return a JSON object with EXACTLY these keys:
+- overallScore: integer 1-10
+- websiteScore: integer 1-10 | null
+- socialScore: integer 1-10
+- seoScore: integer 1-10
+- reputationScore: integer 1-10
+- keyGaps: string[] (3-4 specific gaps)
+- opportunities: string[] (2-3 growth opportunities)
+- competitorContext: string (brief)
+- recommendation: "starter" | "growth" | "enterprise"
+- urgencyReason: string (one sentence — why they need help NOW)
+- estimatedMonthlyAdSpend: string (rough guess, e.g. "₹0–₹5,000")
+
+Return ONLY valid JSON, no other text.`,
+      }],
+      "You are a senior brand analyst. Use web search for real data. Return only valid JSON.");
+
+      const audit = safeJSON(extractText(data));
+      if (audit) {
+        const updated = leads.map(l => l.id === leadId ? { ...l, audit, auditStatus: "done" } : l);
+        setLeads(updated); save(SK.leads, updated);
+        addLog(`✅ Audit done — ${lead.name} scored ${audit.overallScore}/10`, "success");
+      } else { addLog(`⚠️ Audit parse failed for ${lead.name}`, "warn"); }
+    } catch (e) { addLog(`❌ Audit error: ${e.message}`, "error"); }
+    setBusy(null);
+  }
+
+  // ── STEP 3: Generate Report ───────────────────────
+  async function generateReport(leadId) {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead?.audit || busy) return;
+    setBusy(`Writing report for ${lead.name}...`);
+    addLog(`📄 Generating report: ${lead.name}`, "report");
+    try {
+      const data = await callGroq(apiKey, [{
+        role: "user",
+        content: `Write a personalised initial growth report for "${lead.name}" from Sprout Growth Agency.
+
+Business context:
+- Type: ${lead.type}
+- Location: ${lead.geo}, ${lead.geoState}, ${lead.geoCountry}
+- Industry: ${lead.industry}
+- Estimated size: ${lead.estimatedSize}
+
+Audit results:
+${JSON.stringify(lead.audit, null, 2)}
+
+Create a concise, insightful consultant-style report. Reference their specific location and business type throughout.
+
+Return a JSON object with these EXACT keys:
+- executiveSummary: string (2-3 sentences, personalised)
+- whatYoureDoingWell: string[] (1-2 genuine positives found in audit)
+- criticalGaps: string[] (3 specific, named gaps with brief explanation)
+- recommendedStrategy: string (paragraph: channel mix tailored to their size + region)
+- expectedOutcomes: string[] (3 measurable outcomes in 90 days)
+- packageRecommendation: "SGA Starter ₹18k/mo" | "SGA Growth ₹45k/mo" | "SGA Enterprise ₹85k/mo"
+- nextSteps: string (clear, low-pressure CTA)
+- reportTitle: string (personalised e.g. "Growth Audit: Meera's Café, Kozhikode")
+
+Return ONLY valid JSON, no markdown.`,
+      }],
+      "You are a senior growth strategist at Sprout Growth Agency. Return only valid JSON.");
+
+      const report = safeJSON(extractText(data));
+      if (report) {
+        const updated = leads.map(l => l.id === leadId ? { ...l, report } : l);
+        setLeads(updated); save(SK.leads, updated);
+        addLog(`✅ Report ready for ${lead.name}`, "success");
+      } else { addLog(`⚠️ Report parse failed for ${lead.name}`, "warn"); }
+    } catch (e) { addLog(`❌ Report error: ${e.message}`, "error"); }
+    setBusy(null);
+  }
+
+  // ── STEP 4: Compose + Queue Email ─────────────────
+  async function composeEmail(leadId) {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead?.report || busy) return;
+    setBusy(`Composing email for ${lead.name}...`);
+    addLog(`✉️ Composing outreach email: ${lead.name}`, "email");
+    try {
+      const data = await callGroq(apiKey, [{
+        role: "user",
+        content: `Write a personalised cold outreach email on behalf of Sprout Growth Agency.
+
+Recipient: ${lead.name} (${lead.type} in ${lead.geo}, ${lead.geoCountry})
+Report title: ${lead.report.reportTitle || "Growth Audit"}
+Executive summary: ${lead.report.executiveSummary}
+Key gaps found: ${JSON.stringify(lead.audit?.keyGaps)}
+Urgency: ${lead.audit?.urgencyReason}
+Package to recommend: ${lead.report.packageRecommendation}
+
+Email rules:
+- Subject: Specific to their business (NOT generic "Grow your business")
+- Opener: One genuine observation about their local market or business
+- Para 1: 2 specific things we noticed (show homework — don't be vague)
+- Para 2: Briefly mention we've prepared a free initial growth report for them
+- CTA: Soft — ask if they'd like a free 20-min strategy call to walk through it
+- Sign off: Warm, from "The Sprout Growth Team" with website & WhatsApp: ${AGENCY.phone}
+- Length: 160-200 words MAX
+- Tone: Helpful consultant, NOT salesperson
+
+Return ONLY JSON with keys: subject, body, recipientName`,
+      }],
+      "You write warm, personalised, non-spammy cold emails for a boutique growth agency. Return only valid JSON.");
+
+      const emailContent = safeJSON(extractText(data));
+      if (emailContent?.subject && emailContent?.body) {
+        const qItem = {
+          id: `q-${leadId}-${Date.now()}`, leadId,
+          leadName: lead.name, leadEmail: lead.email,
+          geo: lead.geo, country: lead.geoCountry, industry: lead.industry,
+          subject: emailContent.subject, body: emailContent.body,
+          recipientName: emailContent.recipientName || lead.name,
+          queuedAt: new Date().toISOString(), status: "queued",
+        };
+        const updLeads = leads.map(l => l.id === leadId ? { ...l, emailContent, emailStatus: "queued" } : l);
+        const updQueue = [...queue, qItem];
+        setLeads(updLeads); setQueue(updQueue);
+        save(SK.leads, updLeads); save(SK.queue, updQueue);
+        addLog(`✅ Email queued for ${lead.name}`, "success");
+      } else { addLog(`⚠️ Email composition failed for ${lead.name}`, "warn"); }
+    } catch (e) { addLog(`❌ Email error: ${e.message}`, "error"); }
+    setBusy(null);
+  }
+
+  // ── STEP 5: Send Daily Batch via Brevo ────────────
+  async function sendDailyBatch() {
+    if (busy) return;
+    const remaining = MAX_DAILY_EMAILS - sentToday;
+    if (remaining <= 0) { addLog(`⏳ Daily limit of ${MAX_DAILY_EMAILS} reached`, "warn"); return; }
+
+    const toSend = queue.filter(e => e.status === "queued" && e.leadEmail).slice(0, remaining);
+    if (!toSend.length) { addLog(`📭 No emails with valid addresses ready`, "warn"); return; }
+
+    setBusy(`Sending ${toSend.length} email(s) via Brevo...`);
+    addLog(`📤 Sending batch: ${toSend.length} email(s) via Brevo`, "email");
+
+    let updSent = [...sent], updQueue = [...queue], updLeads = [...leads];
+
+    for (const email of toSend) {
+      try {
+        await sendViaBrevo(brevoKey, email.leadEmail, email.recipientName || email.leadName, email.subject, email.body);
+        const sentItem = { ...email, status: "sent", sentDate: todayStr(), sentAt: new Date().toISOString(), followedUp: false };
+        updSent  = [...updSent, sentItem];
+        updQueue = updQueue.map(q => q.id === email.id ? { ...q, status: "sent" } : q);
+        updLeads = updLeads.map(l => l.id === email.leadId ? { ...l, emailStatus: "sent" } : l);
+        addLog(`📨 Sent → ${email.leadName} (${email.leadEmail})`, "success");
+      } catch (e) { addLog(`❌ Send failed → ${email.leadName}: ${e.message}`, "error"); }
+    }
+
+    setSent(updSent); setQueue(updQueue); setLeads(updLeads);
+    save(SK.sent, updSent); save(SK.queue, updQueue); save(SK.leads, updLeads);
+    setBusy(null);
+  }
+
+  // ── STEP 6: Weekly Follow-ups ─────────────────────
+  async function runWeeklyAudit() {
+    if (busy) return;
+    const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+    const dueItems = sent.filter(e => e.sentDate <= cutoff && !e.followedUp);
+    addLog(`📊 Weekly audit — ${dueItems.length} follow-up(s) due`, "audit");
+    if (!dueItems.length) return;
+
+    setBusy(`Running weekly audit & follow-ups...`);
+    let updSent = [...sent];
+
+    for (const email of dueItems) {
+      const lead = leads.find(l => l.id === email.leadId);
+      if (!lead) continue;
+      try {
+        const data = await callGroq(apiKey, [{
+          role: "user",
+          content: `Write a personalised follow-up email for "${lead.name}" (${lead.type} in ${lead.geo}).
+
+Original outreach details:
+- Subject sent: "${email.subject}"
+- Core angle: ${lead.audit?.urgencyReason || "digital growth opportunities"}
+- It has been ~7 days
+
+Write a follow-up that:
+1. References the original email naturally in 1 line
+2. Adds a NEW piece of value (a quick tip, local market insight, or a thoughtful question)
+3. Is NOT pushy — sounds like a colleague checking in
+4. Length: 90-120 words
+5. Ends with a gentle, specific question or next step
+Sign off from "The Sprout Growth Team" with website & WhatsApp: ${AGENCY.phone}
+
+Return ONLY JSON: { subject: string, body: string }`,
+        }],
+        "Write natural, warm follow-up emails. Return only valid JSON.");
+
+        const fup = safeJSON(extractText(data));
+        if (fup?.subject && fup?.body && lead.email) {
+          await sendViaBrevo(brevoKey, lead.email, lead.name, `Re: ${fup.subject}`, fup.body);
+          updSent = updSent.map(s => s.id === email.id ? { ...s, followedUp: true, followUpDate: todayStr() } : s);
+          addLog(`🔄 Follow-up sent → ${lead.name}`, "success");
+        }
+      } catch (e) { addLog(`❌ Follow-up failed → ${lead?.name}: ${e.message}`, "error"); }
+    }
+
+    setSent(updSent); save(SK.sent, updSent);
+    setBusy(null);
+  }
+
+  // ── Advance target ────────────────────────────────
+  async function advanceTarget() {
+    let { geoIdx, indIdx } = target;
+    indIdx++;
+    if (indIdx >= INDUSTRIES.length) { indIdx = 0; geoIdx++; }
+    if (geoIdx >= GEO_LIST.length)   { geoIdx = 0; addLog("🎉 All regions covered — cycling back!", "success"); }
+    const nt = { geoIdx, indIdx };
+    setTarget(nt); save(SK.target, nt);
+    addLog(`➡️ Target: ${INDUSTRIES[indIdx].label} · ${GEO_LIST[geoIdx].label}, ${GEO_LIST[geoIdx].country}`, "info");
+  }
+
+  // ── Save settings ─────────────────────────────────
+  function handleSaveSettings(s) {
+    setSettings(s); save(SK.settings, s);
+    addLog("⚙️ API keys saved (Groq + Brevo)", "success");
+  }
+
+  const TABS = [
+    { id:"discovery", icon:"🎯", label:"Discovery" },
+    { id:"audits",    icon:"🔬", label:"Audits"     },
+    { id:"queue",     icon:"📧", label:"Email Queue"},
+    { id:"weekly",    icon:"📊", label:"Weekly"     },
+    { id:"coverage",  icon:"🗺️", label:"Coverage"   },
+    { id:"activity",  icon:"📋", label:"Activity"   },
+    { id:"setup",     icon:"🚀", label:"Setup Guide" },
+  ];
+
+  const keysSet = !!(settings.groqKey && settings.brevoKey);
+
+  return (
+    <div style={{ fontFamily: font, background: C.bg, color: C.text, minHeight: "100vh", fontSize: 13 }}>
+
+      {showSettings && <SettingsPanel settings={settings} onSave={handleSaveSettings} onClose={() => setShowSettings(false)} />}
+
+      {/* ── HEADER ─────────────────────────────────── */}
+      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "10px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap: 12 }}>
+          <span style={{ color: C.accent, fontSize: 16, fontWeight:"bold" }}>🌱 SPROUT</span>
+          <span style={{ color: C.muted, fontSize: 10, borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>LEAD ENGINE · GROQ EDITION · GITHUB PAGES</span>
+        </div>
+        <div style={{ display:"flex", gap: 12, alignItems:"center", fontSize: 11 }}>
+          {[
+            ["Queued", queuedCount, C.accent],
+            [`Today ${sentToday}/${MAX_DAILY_EMAILS}`, null, sentToday >= MAX_DAILY_EMAILS ? C.warn : C.accent],
+            ["Follow-ups", followUpDue, followUpDue > 0 ? C.warn : C.muted],
+            ["Sent", sent.length, C.accent],
+          ].map(([label, val, col]) => (
+            <span key={label} style={{ color: C.muted }}>{label}{val != null ? ": " : ""}<span style={{ color: col }}>{val}</span></span>
+          ))}
+          <button onClick={() => setShowSettings(true)} style={{ background: keysSet ? `${C.green}18` : `${C.warn}18`, border: `1px solid ${keysSet ? C.green : C.warn}`, borderRadius: 4, padding: "3px 10px", color: keysSet ? C.green : C.warn, fontFamily: font, fontSize: 10, cursor:"pointer" }}>
+            {keysSet ? "✓ Keys Set" : "⚠️ Setup Keys"} ⚙️
+          </button>
+        </div>
+      </div>
+
+      {/* ── TARGET BANNER ─────────────────────────── */}
+      <div style={{ background: `${C.accent}08`, borderBottom: `1px solid ${C.border}`, padding: "7px 20px", display:"flex", alignItems:"center", gap: 10, flexWrap:"wrap", fontSize: 11 }}>
+        <span style={{ color: C.muted }}>TARGET →</span>
+        <Badge label={`${currentInd.icon} ${currentInd.label}`} color={C.accent} />
+        <span style={{ color: C.muted }}>in</span>
+        <Badge label={`📍 ${currentGeo.label}${currentGeo.state ? `, ${currentGeo.state}` : ""}, ${currentGeo.country}`} color={C.green} />
+        <span style={{ color: C.muted }}>· Region {target.geoIdx + 1}/{GEO_LIST.length} · Industry {target.indIdx + 1}/{INDUSTRIES.length} ·</span>
+        <span style={{ color: C.accent }}>{segmentLeads.length} lead(s)</span>
+      </div>
+
+      {/* ── BUSY ──────────────────────────────────── */}
+      {busy && (
+        <div style={{ background: `${C.accent}10`, borderBottom: `1px solid ${C.border}`, padding: "6px 20px", fontSize: 11, color: C.accent }}>
+          ⟳ {busy}
+        </div>
+      )}
+
+      {/* ── TABS ──────────────────────────────────── */}
+      <div style={{ display:"flex", background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "0 16px", overflowX:"auto" }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ background:"none", border:"none", fontFamily: font, borderBottom: tab === t.id ? `2px solid ${C.accent}` : "2px solid transparent", color: tab === t.id ? C.accent : C.muted, padding: "9px 12px", cursor:"pointer", fontSize: 11, whiteSpace:"nowrap" }}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── CONTENT ───────────────────────────────── */}
+      <div style={{ padding: 20, maxWidth: 900, margin: "0 auto" }}>
+
+        {/* DISCOVERY */}
+        {tab === "discovery" && (
+          <div>
+            <div style={{ display:"flex", gap: 10, marginBottom: 20, flexWrap:"wrap" }}>
+              <Btn onClick={discoverLeads} disabled={!!busy || !settings.groqKey}>🔍 Discover Leads</Btn>
+              <Btn onClick={advanceTarget} disabled={!!busy} variant="outline">⏭️ Advance Target</Btn>
+            </div>
+            <Card style={{ marginBottom: 16, borderColor: `${C.accent}30` }}>
+              <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>ACTIVE SEGMENT</div>
+              <div style={{ fontSize: 15, color: C.accent, marginBottom: 3 }}>{currentInd.icon} {currentInd.label} · {currentGeo.label}, {currentGeo.country}</div>
+              <div style={{ fontSize: 11, color: C.muted }}>
+                {segmentLeads.length} discovered · {segmentLeads.filter(l => l.audit).length} audited · {segmentLeads.filter(l => l.emailStatus !== "none").length} emailed
+              </div>
+            </Card>
+            {segmentLeads.length === 0 && (
+              <div style={{ color: C.muted, textAlign:"center", padding:"40px 0", borderTop: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>🎯</div>
+                <div>No leads yet.</div>
+                <div style={{ fontSize: 11, marginTop: 4 }}>Click "Discover Leads" to search the web.</div>
+              </div>
+            )}
+            {segmentLeads.map(lead => (
+              <LeadCard key={lead.id} lead={lead} busy={busy}
+                onAudit={() => runAudit(lead.id)}
+                onReport={() => generateReport(lead.id)}
+                onEmail={() => composeEmail(lead.id)}
+                expanded={expanded === lead.id}
+                onToggle={() => setExpanded(expanded === lead.id ? null : lead.id)}
+              />
+            ))}
+            {leads.length > segmentLeads.length && (
+              <div style={{ fontSize: 11, color: C.muted, textAlign:"center", marginTop: 16 }}>
+                +{leads.length - segmentLeads.length} leads in other segments
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* AUDITS */}
+        {tab === "audits" && (
+          <div>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>
+              {leads.filter(l => l.audit).length} audited / {leads.length} total leads
+            </div>
+            {leads.filter(l => l.audit).length === 0 && (
+              <div style={{ color: C.muted, textAlign:"center", padding: 40 }}>No audits yet. Run audits from the Discovery tab.</div>
+            )}
+            {leads.filter(l => l.audit).map(lead => <AuditCard key={lead.id} lead={lead} />)}
+          </div>
+        )}
+
+        {/* EMAIL QUEUE */}
+        {tab === "queue" && (
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap: 12, marginBottom: 20, flexWrap:"wrap" }}>
+              <Btn onClick={sendDailyBatch} disabled={!!busy || sentToday >= MAX_DAILY_EMAILS || !settings.brevoKey}>
+                📤 Send Today's Batch ({Math.max(0, MAX_DAILY_EMAILS - sentToday)} remaining)
+              </Btn>
+              {sentToday >= MAX_DAILY_EMAILS && <span style={{ fontSize: 11, color: C.warn }}>⏳ Daily limit reached — resets tomorrow</span>}
+              {!settings.brevoKey && <span style={{ fontSize: 11, color: C.warn }}>⚠️ Add Brevo key in Settings to send</span>}
+            </div>
+            <div style={{ fontSize: 10, color: C.muted, marginBottom: 8 }}>QUEUED ({queuedCount})</div>
+            {queue.filter(e => e.status === "queued").map(e => <QueueCard key={e.id} email={e} status="queued" />)}
+            {queue.filter(e => e.status === "queued").length === 0 && <div style={{ color: C.muted, fontSize: 12, padding:"12px 0" }}>No emails queued.</div>}
+
+            <div style={{ fontSize: 10, color: C.muted, margin: "24px 0 8px" }}>SENT ({sent.length})</div>
+            {[...sent].reverse().map(e => <QueueCard key={e.id} email={e} status="sent" />)}
+            {sent.length === 0 && <div style={{ color: C.muted, fontSize: 12, padding:"12px 0" }}>No emails sent yet.</div>}
+          </div>
+        )}
+
+        {/* WEEKLY */}
+        {tab === "weekly" && (
+          <div>
+            <Btn onClick={runWeeklyAudit} disabled={!!busy} style={{ marginBottom: 20 }}>📊 Run Weekly Audit & Send Follow-ups</Btn>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 24 }}>
+              {[
+                { icon:"🎯", val: leads.length,                         label:"Total Leads" },
+                { icon:"🔬", val: leads.filter(l=>l.audit).length,      label:"Audited" },
+                { icon:"📄", val: leads.filter(l=>l.report).length,     label:"Reports Done" },
+                { icon:"📨", val: sent.length,                          label:"Emails Sent" },
+                { icon:"🔄", val: followUpDue,                          label:"Follow-ups Due", warn: followUpDue > 0 },
+                { icon:"🗺️", val: `${target.geoIdx+1}/${GEO_LIST.length}`, label:"Regions" },
+              ].map(s => (
+                <Card key={s.label} style={{ textAlign:"center" }}>
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>{s.icon}</div>
+                  <div style={{ fontSize: 20, fontWeight:"bold", color: s.warn ? C.warn : C.accent }}>{s.val}</div>
+                  <div style={{ fontSize: 10, color: C.muted }}>{s.label}</div>
+                </Card>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, color: C.muted, marginBottom: 8 }}>PENDING FOLLOW-UPS</div>
+            {followUpDue === 0 && <div style={{ color: C.muted, textAlign:"center", padding: 20, fontSize: 12 }}>No follow-ups due. Check back 7 days after sending emails.</div>}
+            {sent.filter(e => {
+              const cutoff = new Date(Date.now() - 7*86400000).toISOString().split("T")[0];
+              return e.sentDate <= cutoff && !e.followedUp;
+            }).map(e => (
+              <Card key={e.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div>
+                  <div style={{ color: C.text }}>{e.leadName}</div>
+                  <div style={{ color: C.muted, fontSize: 11 }}>{e.geo} · {e.industry} · Sent: {e.sentDate}</div>
+                </div>
+                <Badge label="Follow-up Due" color={C.warn} />
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* COVERAGE */}
+        {tab === "coverage" && (
+          <div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom: 6, fontSize:11 }}>
+                <span style={{ color: C.muted }}>Overall Progress</span>
+                <span style={{ color: C.accent }}>{Math.round(((target.geoIdx * INDUSTRIES.length + target.indIdx) / (GEO_LIST.length * INDUSTRIES.length)) * 100)}%</span>
+              </div>
+              <div style={{ height: 6, background: C.border, borderRadius: 3 }}>
+                <div style={{ height:"100%", width:`${((target.geoIdx * INDUSTRIES.length + target.indIdx) / (GEO_LIST.length * INDUSTRIES.length)) * 100}%`, background:`linear-gradient(90deg, ${C.accent}, ${C.green})`, borderRadius: 3 }} />
+              </div>
+            </div>
+            {["India","Nepal","Bangladesh","Sri Lanka","Myanmar","Bhutan","Maldives","Pakistan"].map(country => {
+              const countryGeos = GEO_LIST.filter(g => g.country === country);
+              const doneGeos = countryGeos.filter(g => GEO_LIST.indexOf(g) < target.geoIdx);
+              return (
+                <div key={country} style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, display:"flex", justifyContent:"space-between" }}>
+                    <span>{country}</span><span style={{ color: C.accent }}>{doneGeos.length}/{countryGeos.length} regions</span>
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap: 6 }}>
+                    {countryGeos.map(geo => {
+                      const gi = GEO_LIST.indexOf(geo);
+                      const isCurrent = gi === target.geoIdx, isDone = gi < target.geoIdx;
+                      const leadsHere = leads.filter(l => l.geoId === geo.id).length;
+                      return (
+                        <div key={geo.id} style={{ padding:"3px 10px", borderRadius: 4, fontSize: 11, border: `1px solid ${isCurrent ? C.accent : isDone ? `${C.green}40` : C.border}`, background: isCurrent ? `${C.accent}15` : isDone ? `${C.green}08` : "transparent", color: isCurrent ? C.accent : isDone ? C.green : C.muted }}>
+                          {isCurrent ? "▶ " : isDone ? "✓ " : ""}{geo.label}{leadsHere > 0 ? <span style={{ color: C.muted }}> ({leadsHere})</span> : ""}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ACTIVITY */}
+        {tab === "activity" && (
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 12 }}>
+              <span style={{ fontSize: 11, color: C.muted }}>RECENT ACTIVITY ({log.length} entries)</span>
+              <Btn size="sm" variant="ghost" onClick={() => { setLog([]); save(SK.log, []); }}>Clear</Btn>
+            </div>
+            {log.length === 0 && <div style={{ color: C.muted, textAlign:"center", padding: 30, fontSize: 12 }}>No activity yet.</div>}
+            {log.map((item, i) => (
+              <div key={i} style={{ display:"flex", gap: 12, padding:"7px 0", borderBottom: `1px solid ${C.border}`, fontSize: 12 }}>
+                <span style={{ color: C.muted, minWidth: 64, flexShrink: 0 }}>{item.time}</span>
+                <span style={{ color: item.type==="success" ? C.green : item.type==="error" ? C.err : item.type==="warn" ? C.warn : item.type==="email" ? C.accent : C.text }}>{item.msg}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* SETUP GUIDE */}
+        {tab === "setup" && (
+          <div style={{ lineHeight: 1.8 }}>
+
+            <div style={{ background:`${C.green}10`, border:`1px solid ${C.green}30`, borderRadius:6, padding:14, marginBottom:18, fontSize:12, color: C.green }}>
+              🎉 Everything in this tool is <strong>100% free</strong>. No servers, no paid plans, no credit cards.
+            </div>
+
+            {[
+              {
+                step: "1", icon: "🐙", title: "Host on GitHub Pages (free)",
+                items: [
+                  "Go to github.com → New repository → name it sprout-lead-engine",
+                  "Upload this HTML file, rename it to index.html",
+                  "Go to Settings → Pages → Source: Deploy from branch → main / root",
+                  "Your dashboard lives at: https://YOUR-USERNAME.github.io/sprout-lead-engine",
+                  "Data saves in your browser's localStorage — private to you on that device",
+                ]
+              },
+              {
+                step: "2", icon: "🤖", title: "Get Groq API Key (free, no card)",
+                items: [
+                  "Go to console.groq.com → Sign up (free, no credit card)",
+                  "Click API Keys in the left sidebar → Create API Key",
+                  "Copy the key (starts with gsk_...)",
+                  "Paste it into ⚙️ Settings in this app",
+                  "Free tier: 14,400 requests/day · 30 requests/minute — more than enough",
+                ]
+              },
+              {
+                step: "3", icon: "📧", title: "Set up Brevo for sending emails (free)",
+                items: [
+                  "Go to app.brevo.com → Sign up free (300 emails/day forever)",
+                  "Go to Settings → Senders, Domains & Dedicated IPs → Add a Sender",
+                  "Add outreach@sproutgrowthagency.com (or any email you control)",
+                  "Go to SMTP & API → API Keys → Generate a new API Key",
+                  "Paste it into ⚙️ Settings in this app",
+                ]
+              },
+              {
+                step: "4", icon: "⚙️", title: "Configure & Run",
+                items: [
+                  "Click ⚙️ Setup Keys button in the top bar and enter both keys",
+                  "Go to Discovery tab → Click Discover Leads for the active segment",
+                  "Click 🔬 Run Audit on each lead, then 📄 Gen Report, then ✉️ Queue Email",
+                  "Go to Email Queue → Send Today's Batch (max 3/day enforced automatically)",
+                  "After 7 days, go to Weekly tab → Run Weekly Audit to send follow-ups",
+                  "Use ⏭️ Advance Target to move to the next industry/region combo",
+                ]
+              },
+            ].map(section => (
+              <div key={section.step} style={{ marginBottom:20 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                  <div style={{ background:`${C.accent}20`, border:`1px solid ${C.accent}40`, borderRadius:4, width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", color:C.accent, fontSize:13, fontWeight:"bold", flexShrink:0 }}>{section.step}</div>
+                  <span style={{ fontSize:14, color:C.accent }}>{section.icon} {section.title}</span>
+                </div>
+                <div style={{ borderLeft:`2px solid ${C.border}`, marginLeft:14, paddingLeft:18 }}>
+                  {section.items.map((item, i) => (
+                    <div key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:12, color:C.text }}>
+                      <span style={{ color:C.muted, flexShrink:0 }}>{String(i+1).padStart(2,"0")}.</span>
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <div style={{ background:`${C.warn}10`, border:`1px solid ${C.warn}30`, borderRadius:6, padding:14, fontSize:11, color:C.warn }}>
+              💡 <strong>Tip:</strong> Bookmark your GitHub Pages URL. All your lead data, audit results, and email history persist in your browser localStorage automatically — no account, no database needed.
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// SUB-COMPONENTS
+// ═══════════════════════════════════════════════════
+function LeadCard({ lead, busy, onAudit, onReport, onEmail, expanded, onToggle }) {
+  const emailStatusColor = lead.emailStatus === "sent" ? C.green : lead.emailStatus === "queued" ? C.warn : C.muted;
+  return (
+    <Card style={{ cursor:"pointer" }}>
+      <div onClick={onToggle} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap: 8, flexWrap:"wrap", marginBottom: 3 }}>
+            <span style={{ color: C.accent, fontWeight:"bold" }}>{lead.name}</span>
+            {lead.emailStatus !== "none" && <Badge label={lead.emailStatus.toUpperCase()} color={emailStatusColor} />}
+            {lead.audit && <Badge label={`${lead.audit.overallScore}/10`} color={lead.audit.overallScore >= 7 ? C.green : lead.audit.overallScore >= 4 ? C.warn : C.err} />}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted }}>{lead.type} · Est. size: {lead.estimatedSize}</div>
+          {lead.website && <div style={{ fontSize: 11, color:"#60a5fa", marginTop: 2 }}>🌐 {lead.website}</div>}
+          {lead.email   ? <div style={{ fontSize: 11, color: C.green, marginTop: 2 }}>✉️ {lead.email}</div>
+                        : <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>✉️ No email found</div>}
+        </div>
+        <span style={{ color: C.muted, flexShrink: 0, marginTop: 2 }}>{expanded ? "▲" : "▼"}</span>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+          {lead.description && <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{lead.description}</div>}
+          {lead.socialPresence && <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>📱 Social: {lead.socialPresence}</div>}
+
+          {lead.audit && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 10, color: C.muted, marginBottom: 8 }}>AUDIT SCORES</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: 8, marginBottom: 10 }}>
+                {[["Website", lead.audit.websiteScore], ["Social", lead.audit.socialScore], ["SEO", lead.audit.seoScore], ["Reputation", lead.audit.reputationScore]].map(([l, v]) => (
+                  <div key={l}><div style={{ fontSize: 10, color: C.muted, marginBottom: 3 }}>{l}</div><ScoreBar score={v} /></div>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>KEY GAPS</div>
+              {lead.audit.keyGaps?.map((g, i) => <div key={i} style={{ fontSize: 11, color: C.warn, marginBottom: 3 }}>⚠ {g}</div>)}
+              {lead.audit.urgencyReason && <div style={{ fontSize: 11, color: C.err, marginTop: 6 }}>🔴 {lead.audit.urgencyReason}</div>}
+            </div>
+          )}
+
+          {lead.report && (
+            <div style={{ background:`${C.accent}08`, border:`1px solid ${C.border}`, borderRadius: 4, padding: 10, marginBottom: 14 }}>
+              <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>REPORT: {lead.report.reportTitle || lead.name}</div>
+              <div style={{ fontSize: 11, color: C.text, marginBottom: 6 }}>{lead.report.executiveSummary}</div>
+              <div style={{ fontSize: 11, color: C.green }}>📦 {lead.report.packageRecommendation}</div>
+            </div>
+          )}
+
+          <div style={{ display:"flex", gap: 8, flexWrap:"wrap" }}>
+            <Btn size="sm" onClick={onAudit} disabled={!!busy || lead.auditStatus === "done"}>
+              {lead.auditStatus === "done" ? "✓ Audited" : "🔬 Run Audit"}
+            </Btn>
+            <Btn size="sm" onClick={onReport} disabled={!!busy || !lead.audit || !!lead.report} variant="outline">
+              {lead.report ? "✓ Report Done" : "📄 Gen Report"}
+            </Btn>
+            <Btn size="sm" onClick={onEmail} disabled={!!busy || !lead.report || lead.emailStatus !== "none"} variant="ghost">
+              {lead.emailStatus !== "none" ? `✓ ${lead.emailStatus}` : "✉️ Queue Email"}
+            </Btn>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function AuditCard({ lead }) {
+  return (
+    <Card>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom: 10 }}>
+        <div>
+          <span style={{ color: C.accent, fontWeight:"bold" }}>{lead.name}</span>
+          <span style={{ color: C.muted, fontSize: 11, marginLeft: 8 }}>{lead.industry} · {lead.geo}, {lead.geoCountry}</span>
+        </div>
+        <Badge label={`Overall: ${lead.audit.overallScore}/10`} color={lead.audit.overallScore >= 7 ? C.green : lead.audit.overallScore >= 4 ? C.warn : C.err} />
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap: 10, marginBottom: 10 }}>
+        {[["Web", lead.audit.websiteScore], ["Social", lead.audit.socialScore], ["SEO", lead.audit.seoScore], ["Rep.", lead.audit.reputationScore]].map(([l, v]) => (
+          <div key={l} style={{ background: C.dim, borderRadius: 4, padding: 8, textAlign:"center" }}>
+            <div style={{ fontSize: 16, fontWeight:"bold", color: v >= 7 ? C.green : v >= 4 ? C.warn : v ? C.err : C.muted }}>{v ?? "–"}</div>
+            <div style={{ fontSize: 10, color: C.muted }}>{l}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: C.muted }}>{lead.audit.keyGaps?.slice(0,2).join(" · ")}</div>
+      {lead.audit.recommendation && <div style={{ fontSize: 10, color: C.accent, marginTop: 6 }}>Recommended: {lead.audit.recommendation.toUpperCase()}</div>}
+    </Card>
+  );
+}
+
+function QueueCard({ email, status }) {
+  return (
+    <Card>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: C.text, fontWeight:"bold", marginBottom: 3 }}>{email.leadName}</div>
+          <div style={{ color: C.muted, fontSize: 11 }}>{email.geo} · {email.industry}</div>
+          {email.leadEmail
+            ? <div style={{ color: C.green, fontSize: 11, marginTop: 2 }}>→ {email.leadEmail}</div>
+            : <div style={{ color: C.err,   fontSize: 11, marginTop: 2 }}>⚠ No email address on file</div>}
+          <div style={{ color: C.muted, fontSize: 11, marginTop: 4, fontStyle:"italic" }}>"{email.subject}"</div>
+        </div>
+        <div style={{ flexShrink: 0 }}>
+          {status === "queued" && <Badge label="QUEUED" color={C.warn} />}
+          {status === "sent" && (
+            <div style={{ textAlign:"right" }}>
+              <Badge label="SENT" color={C.green} />
+              {email.followedUp && <div style={{ fontSize: 10, color: C.green, marginTop: 3 }}>↳ Followed up</div>}
+              {!email.followedUp && email.sentDate && <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{email.sentDate}</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ── Mount ─────────────────────────────────────────
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<SproutLeadEngine />);
+</script>
+</body>
+</html>
