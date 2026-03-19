@@ -1094,7 +1094,9 @@ https://sproutgrowthagency.com | WhatsApp: +91 84537 39993`;
     const remaining = MAX_DAILY_EMAILS - sentToday;
     if (remaining <= 0) { addLog(`⏳ Daily limit of ${MAX_DAILY_EMAILS} reached`, "warn"); return; }
 
-    const toSend = queue.filter(e => e.status === "queued" && e.leadEmail).slice(0, remaining);
+    // Never send to a lead that already has a sent email — prevents auto+manual double send
+    const alreadySentLeadIds = new Set(sent.map(s => s.leadId));
+    const toSend = queue.filter(e => e.status === "queued" && e.leadEmail && !alreadySentLeadIds.has(e.leadId)).slice(0, remaining);
     if (!toSend.length) {
       addLog(`📭 No emails with valid addresses ready`, "warn");
       if (isAuto) lsSet(SK.lastAuto, todayStr()); // still stamp so we don't retry all day
@@ -1461,7 +1463,18 @@ Return ONLY JSON: { subject: string, body: string }`,
             {queue.filter(e => e.status === "queued").length === 0 && <div style={{ color: C.muted, fontSize: 12, padding:"12px 0" }}>No emails queued.</div>}
 
             <div style={{ fontSize: 10, color: C.muted, margin: "24px 0 8px" }}>SENT ({sent.length})</div>
-            {[...sent].reverse().map(e => <QueueCard key={e.id} email={e} status="sent" />)}
+            {(() => {
+              // Deduplicate — show only the most recent entry per leadId (highest eventStatus priority)
+              const priority = { clicked:4, opened:3, delivered:2, sent:1 };
+              const seen = new Map();
+              [...sent].reverse().forEach(e => {
+                const existing = seen.get(e.leadId);
+                if (!existing || (priority[e.eventStatus]||0) > (priority[existing.eventStatus]||0)) {
+                  seen.set(e.leadId, e);
+                }
+              });
+              return [...seen.values()].map(e => <QueueCard key={e.id} email={e} status="sent" />);
+            })()}
             {sent.length === 0 && <div style={{ color: C.muted, fontSize: 12, padding:"12px 0" }}>No emails sent yet.</div>}
           </div>
         )}
