@@ -156,6 +156,10 @@ const GEO_LIST = [
   { id:"IN-AG-AGA", label:"Agartala",           state:"Tripura",          country:"India" },
   { id:"IN-SK-GTK", label:"Gangtok",            state:"Sikkim",           country:"India" },
   { id:"IN-NL-KOH", label:"Kohima",             state:"Nagaland",         country:"India" },
+  { id:"IN-ML-SHI", label:"Shillong",           state:"Meghalaya",        country:"India" },
+  { id:"IN-ML-TUR", label:"Tura",               state:"Meghalaya",        country:"India" },
+  { id:"IN-MZ-AIZ", label:"Aizawl",             state:"Mizoram",          country:"India" },
+  { id:"IN-AR-ITA", label:"Itanagar",           state:"Arunachal Pradesh",country:"India" },
   { id:"IN-CH-CHD", label:"Chandigarh",         state:"Chandigarh",       country:"India" },
   { id:"IN-PY-PON", label:"Puducherry",         state:"Puducherry",       country:"India" },
   { id:"IN-JK-JAM", label:"Jammu",              state:"J&K",              country:"India" },
@@ -1525,15 +1529,64 @@ Return ONLY JSON: { subject: string, body: string }`,
                       const isCurrent = gi === target.geoIdx, isDone = gi < target.geoIdx;
                       const leadsHere = leads.filter(l => l.geoId === geo.id).length;
                       return (
-                        <div key={geo.id} style={{ padding:"3px 10px", borderRadius: 4, fontSize: 11, border: `1px solid ${isCurrent ? C.accent : isDone ? `${C.green}40` : C.border}`, background: isCurrent ? `${C.accent}15` : isDone ? `${C.green}08` : "transparent", color: isCurrent ? C.accent : isDone ? C.green : C.muted }}>
+                        <button
+                          key={geo.id}
+                          onClick={() => {
+                            const nt = { geoIdx: gi, indIdx: 0 };
+                            setTarget(nt); save(SK.target, nt);
+                            addLog(`📍 Jumped to: ${geo.label}, ${geo.country}`, "info");
+                            setTab("discovery");
+                          }}
+                          style={{ padding:"3px 10px", borderRadius: 4, fontSize: 11, cursor:"pointer",
+                            border: `1px solid ${isCurrent ? C.accent : isDone ? `${C.green}40` : C.border}`,
+                            background: isCurrent ? `${C.accent}15` : isDone ? `${C.green}08` : "transparent",
+                            color: isCurrent ? C.accent : isDone ? C.green : C.muted,
+                            fontFamily: font,
+                          }}>
                           {isCurrent ? "▶ " : isDone ? "✓ " : ""}{geo.label}{leadsHere > 0 ? <span style={{ color: C.muted }}> ({leadsHere})</span> : ""}
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
                 </div>
               );
             })}
+
+            {/* Industry rotation for current region */}
+            <div style={{ marginTop: 24 }}>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, display:"flex", justifyContent:"space-between" }}>
+                <span>INDUSTRY ROTATION — {currentGeo.label}</span>
+                <span style={{ color: C.accent, fontSize: 10 }}>Click any to jump</span>
+              </div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap: 6 }}>
+                {INDUSTRIES.map((ind, i) => {
+                  const isCurrent = i === target.indIdx;
+                  return (
+                    <button
+                      key={ind.id}
+                      onClick={() => {
+                        const nt = { geoIdx: target.geoIdx, indIdx: i };
+                        setTarget(nt); save(SK.target, nt);
+                        addLog(`🏭 Jumped to: ${ind.label} · ${currentGeo.label}`, "info");
+                        setTab("discovery");
+                      }}
+                      style={{ padding:"3px 10px", borderRadius: 4, fontSize: 11, cursor:"pointer",
+                        border: `1px solid ${isCurrent ? C.accent : C.border}`,
+                        background: isCurrent ? `${C.accent}15` : "transparent",
+                        color: isCurrent ? C.accent : C.muted,
+                        fontFamily: font,
+                      }}>
+                      {ind.icon} {ind.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14, fontSize: 11, color: C.muted, background: C.dim, borderRadius: 4, padding: "8px 12px" }}>
+              💡 Click any region or industry above to jump straight to it — the tool will switch to the Discovery tab automatically.
+            </div>
+
           </div>
         )}
 
