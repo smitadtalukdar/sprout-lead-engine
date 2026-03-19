@@ -208,6 +208,7 @@ const SK = {
   log:      "sga_v3_log",
   settings: "sga_v3_settings",
   lastAuto: "sga_v3_last_auto",
+  testSent: "sga_v3_test_sent",
 };
 
 const MAX_DAILY_EMAILS = 10;
@@ -732,6 +733,7 @@ function SproutLeadEngine() {
   const [showSettings, setShowSettings] = useState(false);
   const [autoSendEnabled, setAutoSendEnabled] = useState(true);
   const autoSendRef = useRef(false);
+  const [testEmailSent, setTestEmailSent] = useState(() => lsGet(SK.testSent, "") === "true");
 
   // ── Boot: load from localStorage ─────────────────
   useEffect(() => {
@@ -983,6 +985,101 @@ Return ONLY JSON with keys: subject, body, recipientName`,
         addLog(`✅ Email queued for ${lead.name}`, "success");
       } else { addLog(`⚠️ Email composition failed for ${lead.name}`, "warn"); }
     } catch (e) { addLog(`❌ Email error: ${e.message}`, "error"); }
+    setBusy(null);
+  }
+
+  // ── TEST EMAIL — fires once, to admin only ────────
+  async function sendTestEmail() {
+    if (busy) return;
+    if (!settings.brevoKey) { addLog("⚠️ Add Brevo key in Settings first", "warn"); return; }
+
+    setBusy("Sending demo email to you...");
+    addLog("🧪 Sending demo outreach email to smita.d.talukdar@gmail.com...", "info");
+
+    // Realistic sample data so you see a fully populated email
+    const sampleLead = {
+      name: "Meera's Cloud Kitchen",
+      type: "cloud kitchen",
+      geo: "Kozhikode", geoState: "Kerala", geoCountry: "India",
+      industry: "F&B & Restaurants",
+      website: "instagram.com/meerascloudkitchen",
+      email: AGENCY.adminEmail,
+      phone: "+91 98765 43210",
+      estimatedSize: "small",
+    };
+    const sampleAudit = {
+      overallScore: 4,
+      websiteScore: null,
+      socialScore: 5,
+      seoScore: 2,
+      reputationScore: 6,
+      keyGaps: [
+        "No website — only discoverable via Instagram DMs",
+        "Zero Google My Business presence — invisible in local search",
+        "No menu SEO — missing ₹0 organic traffic from food delivery queries",
+        "No email list or WhatsApp broadcast to retain repeat customers",
+      ],
+      opportunities: [
+        "Kozhikode food delivery searches are up 34% YoY — huge organic opportunity",
+        "WhatsApp ordering flow could increase repeat orders by 2–3×",
+        "Partnering with 2–3 micro-influencers in Calicut could drive 500+ trial orders",
+      ],
+      urgencyReason: "Two competing cloud kitchens in Kozhikode launched Google Ads this month — early movers will own the top search spots.",
+      recommendation: "starter",
+      estimatedMonthlyAdSpend: "₹0",
+    };
+    const sampleReport = {
+      reportTitle: "Growth Audit: Meera's Cloud Kitchen, Kozhikode",
+      executiveSummary: "Meera's Cloud Kitchen has built genuine word-of-mouth in Kozhikode but is leaving significant revenue on the table — there is no website, no Google presence, and no way for new customers to discover them outside of Instagram. A focused 90-day digital push could change that dramatically.",
+      whatYoureDoingWell: [
+        "Strong Instagram engagement and loyal repeat customer base",
+        "Authentic brand voice that resonates with the local audience",
+      ],
+      criticalGaps: [
+        "No website or Google My Business — invisible to anyone who isn't already following on Instagram",
+        "No SEO footprint — missing thousands of monthly searches for home-delivery food in Kozhikode",
+        "No customer retention system — no WhatsApp list, no loyalty programme, no reorder nudges",
+      ],
+      recommendedStrategy: "We'd start with a lightweight but high-converting landing page and Google My Business setup in week one — these alone can drive 200–400 new monthly visitors. Alongside that, a WhatsApp broadcast list for weekly specials and a micro-influencer partnership with 2 Calicut food creators would build the trust layer needed to convert discovery into orders.",
+      expectedOutcomes: [
+        "200–400 new monthly website visitors from organic search within 60 days",
+        "15–25% increase in repeat orders through WhatsApp retention campaigns",
+        "500+ new Instagram followers from influencer collaborations in 90 days",
+      ],
+      packageRecommendation: "SGA Starter ₹18k/mo",
+      nextSteps: "Would you be open to a free 20-minute call this week? I'd love to walk you through the full audit and show you exactly what we'd do in the first 30 days — no commitment needed.",
+    };
+
+    const sampleEmailBody = `Hi Meera,
+
+I came across your cloud kitchen on Instagram — the Malabar prawn curry you posted last week looked absolutely incredible, and the comments speak for themselves.
+
+I work with Sprout Growth Agency and we've been researching the Kozhikode food delivery market this month. Two things stood out about your brand: your food quality is clearly exceptional, but right now, anyone searching "cloud kitchen Kozhikode" on Google simply cannot find you.
+
+We've put together a quick free growth audit for Meera's Cloud Kitchen — it covers your current digital footprint, where your biggest gaps are, and what 90 days of focused marketing could look like for you.
+
+Would you be open to a free 20-minute call this week to walk through it together? No pitch, just the findings and a few ideas you can act on immediately — with or without us.
+
+Warm regards,
+The Sprout Growth Team
+https://sproutgrowthagency.com | WhatsApp: +91 84537 39993`;
+
+    try {
+      await sendViaBrevo(
+        settings.brevoKey,
+        AGENCY.adminEmail,       // TO: your gmail — not a lead
+        "Smita (Demo Preview)",
+        "⚠️ [TEST] Growth Audit: Meera's Cloud Kitchen, Kozhikode",
+        sampleEmailBody,
+        sampleReport,
+        sampleAudit,
+        sampleLead
+      );
+      lsSet(SK.testSent, "true");
+      addLog("✅ Demo email sent to smita.d.talukdar@gmail.com — check your inbox!", "success");
+    } catch (e) {
+      addLog(`❌ Test email failed: ${e.message}`, "error");
+    }
     setBusy(null);
   }
 
@@ -1266,6 +1363,39 @@ Return ONLY JSON: { subject: string, body: string }`,
         {/* EMAIL QUEUE */}
         {tab === "queue" && (
           <div>
+
+            {/* ── TEST EMAIL BANNER — shown until first test is sent ── */}
+            {!testEmailSent && (
+              <Card style={{ marginBottom: 16, borderColor:`${C.warn}50`, background:`${C.warn}08` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
+                  <div>
+                    <div style={{ fontSize:12, color:C.warn, fontWeight:"bold", marginBottom:4 }}>
+                      🧪 Send a Demo Email to Yourself First
+                    </div>
+                    <div style={{ fontSize:11, color:C.muted, lineHeight:1.7 }}>
+                      Before any real leads receive an email, send yourself a demo so you can check the branding,
+                      layout, and content look exactly right in your inbox.<br/>
+                      <span style={{ color:C.text }}>Sends to: smita.d.talukdar@gmail.com</span> — not to any lead.
+                    </div>
+                  </div>
+                  <div style={{ flexShrink:0 }}>
+                    <Btn
+                      onClick={async () => { await sendTestEmail(); setTestEmailSent(true); }}
+                      disabled={!!busy || !settings.brevoKey}
+                      variant="outline"
+                    >
+                      📧 Send Demo
+                    </Btn>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {testEmailSent && (
+              <div style={{ fontSize:11, color:C.green, marginBottom:12 }}>
+                ✅ Demo email sent — check smita.d.talukdar@gmail.com to confirm everything looks right before sending to leads.
+              </div>
+            )}
             {/* Auto-send status card */}
             <Card style={{ marginBottom: 16, borderColor: autoSendEnabled ? `${C.green}40` : `${C.muted}30`, background: autoSendEnabled ? `${C.green}08` : C.card }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
