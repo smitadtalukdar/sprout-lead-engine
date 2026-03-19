@@ -30,6 +30,8 @@ const AGENCY = {
   email: "hello@sproutgrowthagency.com",
   outreachEmail: "outreach@sproutgrowthagency.com",
   outreachName: "Sprout Growth Team",
+  adminEmail: "smita.d.talukdar@gmail.com",   // hidden reply-to + alert destination
+  replyTo: "smita.d.talukdar@gmail.com",       // where lead replies land (invisible to leads)
   website: "https://sproutgrowthagency.com",
   phone: "+91 84537 39993",
   tagline: "We Don't Just Market. We Grow Your Business.",
@@ -205,9 +207,10 @@ const SK = {
   sent:     "sga_v3_sent",
   log:      "sga_v3_log",
   settings: "sga_v3_settings",
+  lastAuto: "sga_v3_last_auto",
 };
 
-const MAX_DAILY_EMAILS = 3;
+const MAX_DAILY_EMAILS = 10;
 const todayStr = () => new Date().toISOString().split("T")[0];
 
 function lsGet(key, fallback) {
@@ -506,6 +509,66 @@ function buildEmailHTML(body, report, audit, lead) {
 </body></html>`;
 }
 
+// ── Brevo: fetch tracking events for a message ───────
+async function fetchBrevoEvents(brevoKey, messageId) {
+  if (!brevoKey || !messageId) return [];
+  try {
+    const res = await fetch(
+      `https://api.brevo.com/v3/smtp/statistics/events?messageId=${encodeURIComponent(messageId)}&limit=20`,
+      { headers: { "api-key": brevoKey, "Accept": "application/json" } }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.events || [];
+  } catch { return []; }
+}
+
+// ── Send admin alert email via Brevo ─────────────────
+async function sendAdminAlert(brevoKey, eventType, leadName, leadEmail, geo) {
+  if (!brevoKey) return;
+  const icons = { opened:"👁️", clicked:"🖱️", bounced:"⚠️", delivered:"✅" };
+  const icon  = icons[eventType] || "📬";
+  try {
+    await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "api-key": brevoKey },
+      body: JSON.stringify({
+        sender: { name: "Sprout Lead Engine", email: AGENCY.outreachEmail },
+        to: [{ email: AGENCY.adminEmail, name: "Smita" }],
+        subject: `${icon} Lead ${eventType}: ${leadName}`,
+        htmlContent: `
+          <div style="font-family:Arial,sans-serif;max-width:500px;padding:24px;background:#f7fbf9;border-radius:8px;">
+            <div style="font-size:32px;margin-bottom:12px;">${icon}</div>
+            <h2 style="color:#152546;margin:0 0 8px;">Lead ${eventType.charAt(0).toUpperCase()+eventType.slice(1)}</h2>
+            <p style="color:#1b2b4b;font-size:15px;margin:0 0 16px;">
+              <strong>${leadName}</strong> from <em>${geo}</em><br/>
+              <span style="color:#888;">${leadEmail}</span>
+            </p>
+            <div style="background:#152546;color:#79c1a9;padding:10px 16px;border-radius:6px;font-size:12px;letter-spacing:0.05em;">
+              ${new Date().toLocaleString("en-IN",{timeZone:"Asia/Kolkata"})} IST
+            </div>
+            <p style="margin-top:16px;font-size:13px;color:#888;">
+              View full pipeline → <a href="https://smitadtalukdar.github.io/sprout-lead-engine" style="color:#91c941;">sprout-lead-engine</a>
+            </p>
+          </div>`,
+      }),
+    });
+  } catch (_) {} // silent — don't break main flow
+}
+
+// ── WhatsApp alert via CallMeBot ──────────────────────
+async function sendWhatsAppAlert(waPhone, waApiKey, eventType, leadName, geo) {
+  if (!waPhone || !waApiKey) return;
+  const icons = { opened:"👁️", clicked:"🖱️✨", bounced:"⚠️", delivered:"✅" };
+  const msg = `${icons[eventType]||"📬"} Sprout Lead Engine\n*${leadName}* (${geo})\njust *${eventType}* your outreach email!\n\n🕐 ${new Date().toLocaleString("en-IN",{timeZone:"Asia/Kolkata"})} IST`;
+  try {
+    await fetch(
+      `https://api.callmebot.com/whatsapp.php?phone=${waPhone}&text=${encodeURIComponent(msg)}&apikey=${waApiKey}`,
+      { method: "GET" }
+    );
+  } catch (_) {} // silent
+}
+
 // ── Updated sendViaBrevo with branded template ────────
 async function sendViaBrevo(brevoKey, to, toName, subject, body, report = null, audit = null, lead = null) {
   if (!brevoKey) throw new Error("No Brevo API key set. Go to ⚙️ Settings.");
@@ -514,7 +577,8 @@ async function sendViaBrevo(brevoKey, to, toName, subject, body, report = null, 
     method: "POST",
     headers: { "Content-Type": "application/json", "api-key": brevoKey },
     body: JSON.stringify({
-      sender: { name: AGENCY.outreachName, email: AGENCY.outreachEmail },
+      sender:  { name: AGENCY.outreachName, email: AGENCY.outreachEmail },
+      replyTo: { name: "Sprout Growth Team", email: AGENCY.replyTo },  // invisible to lead
       to: [{ email: to, name: toName || to }],
       subject,
       htmlContent,
@@ -522,7 +586,8 @@ async function sendViaBrevo(brevoKey, to, toName, subject, body, report = null, 
     }),
   });
   if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err?.message || `Brevo ${res.status}`); }
-  return res.json();
+  const result = await res.json();
+  return result;
 }
 
 // ═══════════════════════════════════════════════════
@@ -586,19 +651,21 @@ function Input({ label, value, onChange, type = "text", placeholder = "", hint =
 // SETTINGS PANEL
 // ═══════════════════════════════════════════════════
 function SettingsPanel({ settings, onSave, onClose }) {
-  const [groqKey, setGroqKey] = useState(settings.groqKey || "");
-  const [brevoKey,  setBrevoKey]  = useState(settings.brevoKey  || "");
+  const [groqKey,  setGroqKey]  = useState(settings.groqKey  || "");
+  const [brevoKey, setBrevoKey] = useState(settings.brevoKey || "");
+  const [waPhone,  setWaPhone]  = useState(settings.waPhone  || "");
+  const [waApiKey, setWaApiKey] = useState(settings.waApiKey || "");
   const [saved, setSaved] = useState(false);
 
   function handleSave() {
-    onSave({ groqKey: groqKey.trim(), brevoKey: brevoKey.trim() });
+    onSave({ groqKey: groqKey.trim(), brevoKey: brevoKey.trim(), waPhone: waPhone.trim(), waApiKey: waApiKey.trim() });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 28, width: "min(480px, 95vw)", fontFamily: font }}>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", overflowY:"auto" }}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 28, width: "min(500px, 95vw)", fontFamily: font, margin: "20px auto" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 20 }}>
           <span style={{ color: C.accent, fontSize: 14, fontWeight:"bold" }}>⚙️ API Settings</span>
           <button onClick={onClose} style={{ background:"none", border:"none", color: C.muted, cursor:"pointer", fontSize: 18 }}>✕</button>
@@ -607,38 +674,41 @@ function SettingsPanel({ settings, onSave, onClose }) {
         <div style={{ background: `${C.green}10`, border: `1px solid ${C.green}30`, borderRadius: 4, padding: 10, marginBottom: 18, fontSize: 11, color: C.green }}>
           ✅ Groq is <strong>100% free</strong> — 14,400 requests/day, no credit card ever needed.
         </div>
-
         <div style={{ background: `${C.warn}10`, border: `1px solid ${C.warn}30`, borderRadius: 4, padding: 10, marginBottom: 18, fontSize: 11, color: C.warn }}>
           🔒 Keys are stored in your browser's localStorage only — never sent anywhere except directly to the respective APIs.
         </div>
 
-        <Input
-          label="GROQ API KEY (FREE — 14,400 req/day)"
-          type="password"
-          value={groqKey}
-          onChange={setGroqKey}
-          placeholder="gsk_..."
-          hint="Get free at console.groq.com → API Keys → Create API Key (no credit card)"
-        />
-        <Input
-          label="BREVO API KEY"
-          type="password"
-          value={brevoKey}
-          onChange={setBrevoKey}
-          placeholder="xkeysib-..."
-          hint="Get from app.brevo.com → SMTP & API → API Keys"
-        />
+        {/* AI */}
+        <div style={{ fontSize: 10, color: C.muted, letterSpacing:"0.1em", marginBottom: 10 }}>AI ENGINE</div>
+        <Input label="GROQ API KEY (FREE — 14,400 req/day)" type="password" value={groqKey} onChange={setGroqKey}
+          placeholder="gsk_..." hint="console.groq.com → API Keys → Create API Key (no credit card)" />
 
-        <div style={{ background: C.dim, borderRadius: 4, padding: 10, marginBottom: 18, fontSize: 11, color: C.muted }}>
-          <div style={{ color: C.text, marginBottom: 4 }}>📧 Outreach sender configured as:</div>
-          <div style={{ color: C.accent }}>{AGENCY.outreachEmail}</div>
-          <div style={{ marginTop: 6, lineHeight: 1.6 }}>
-            Make sure this address is verified as a sender in your Brevo account under <span style={{ color: C.text }}>Senders, Domains & Dedicated IPs</span>.
-          </div>
+        {/* Email */}
+        <div style={{ fontSize: 10, color: C.muted, letterSpacing:"0.1em", margin: "14px 0 10px" }}>EMAIL SENDING</div>
+        <Input label="BREVO API KEY" type="password" value={brevoKey} onChange={setBrevoKey}
+          placeholder="xkeysib-..." hint="app.brevo.com → SMTP & API → API Keys (free: 300 emails/day)" />
+
+        <div style={{ background: C.dim, borderRadius: 4, padding: 10, marginBottom: 14, fontSize: 11, color: C.muted }}>
+          <div style={{ color: C.text, marginBottom: 3 }}>📧 Emails sent from: <span style={{ color: C.accent }}>{AGENCY.outreachEmail}</span></div>
+          <div>↩️ Replies go to: <span style={{ color: C.green }}>{AGENCY.replyTo}</span> <span style={{ color: C.muted }}>(hidden from leads)</span></div>
+          <div style={{ marginTop: 6 }}>Make sure <span style={{ color: C.text }}>{AGENCY.outreachEmail}</span> is verified in Brevo under Senders &amp; Domains.</div>
         </div>
 
-        <div style={{ display:"flex", gap: 10 }}>
-          <Btn onClick={handleSave}>{saved ? "✓ Saved!" : "💾 Save Keys"}</Btn>
+        {/* WhatsApp */}
+        <div style={{ fontSize: 10, color: C.muted, letterSpacing:"0.1em", margin: "14px 0 10px" }}>WHATSAPP ALERTS (OPTIONAL — FREE)</div>
+        <div style={{ background: `${C.accent}08`, border: `1px solid ${C.border}`, borderRadius: 4, padding: 10, marginBottom: 12, fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
+          <div style={{ color: C.text, marginBottom: 4 }}>One-time setup to get WhatsApp pings when a lead opens or clicks your email:</div>
+          <div>1. Send <strong style={{ color: C.accent }}>I allow callmebot to send me messages</strong> to <strong style={{ color: C.accent }}>+34 644 22 04 44</strong> on WhatsApp</div>
+          <div>2. You'll receive your API key via WhatsApp within a minute</div>
+          <div>3. Enter your number with country code below (e.g. 919876543210 for India)</div>
+        </div>
+        <Input label="YOUR WHATSAPP NUMBER (with country code, no +)" value={waPhone} onChange={setWaPhone}
+          placeholder="919876543210" hint="e.g. 919876543210 for +91 98765 43210" />
+        <Input label="CALLMEBOT API KEY" type="password" value={waApiKey} onChange={setWaApiKey}
+          placeholder="1234567" hint="Received via WhatsApp after the one-time setup above" />
+
+        <div style={{ display:"flex", gap: 10, marginTop: 6 }}>
+          <Btn onClick={handleSave}>{saved ? "✓ Saved!" : "💾 Save Settings"}</Btn>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         </div>
       </div>
@@ -658,8 +728,10 @@ function SproutLeadEngine() {
   const [log,      setLog]      = useState([]);
   const [busy,     setBusy]     = useState(null);
   const [expanded, setExpanded] = useState(null);
-  const [settings, setSettings] = useState({ groqKey: "", brevoKey: "" });
+  const [settings, setSettings] = useState({ groqKey: "", brevoKey: "", waPhone: "", waApiKey: "" });
   const [showSettings, setShowSettings] = useState(false);
+  const [autoSendEnabled, setAutoSendEnabled] = useState(true);
+  const autoSendRef = useRef(false);
 
   // ── Boot: load from localStorage ─────────────────
   useEffect(() => {
@@ -668,7 +740,7 @@ function SproutLeadEngine() {
     setQueue(  lsGet(SK.queue,    []));
     setSent(   lsGet(SK.sent,     []));
     setLog(    lsGet(SK.log,      []));
-    const s = lsGet(SK.settings,  { groqKey: "", brevoKey: "" });
+    const s = lsGet(SK.settings,  { groqKey: "", brevoKey: "", waPhone: "", waApiKey: "" });
     setSettings(s);
     if (!s.groqKey) setTimeout(() => setShowSettings(true), 400);
   }, []);
@@ -680,6 +752,29 @@ function SproutLeadEngine() {
     const item = { msg, type, time: new Date().toLocaleTimeString("en-IN", { hour12: false }) };
     setLog(prev => { const u = [item, ...prev].slice(0, 60); save(SK.log, u); return u; });
   };
+
+  // ── Auto-send: fires once per day on page open ────
+  useEffect(() => {
+    // Wait for state to be fully loaded and keys to be present
+    if (autoSendRef.current) return;
+    if (!autoSendEnabled) return;
+    if (!settings.brevoKey || !settings.groqKey) return;
+
+    const lastAuto = lsGet(SK.lastAuto, "");
+    const today    = todayStr();
+    if (lastAuto === today) return; // already ran today
+
+    const readyToSend = queue.filter(e => e.status === "queued" && e.leadEmail);
+    if (!readyToSend.length) return;
+
+    autoSendRef.current = true;
+    const delay = setTimeout(() => {
+      addLog("🤖 Auto-send triggered — sending today's batch...", "info");
+      sendDailyBatch(true);
+    }, 2500); // small delay so UI is fully painted first
+
+    return () => clearTimeout(delay);
+  }, [settings.brevoKey, settings.groqKey, queue, sent, autoSendEnabled]);
 
   // ── Derived ───────────────────────────────────────
   const currentGeo   = GEO_LIST[target.geoIdx]   || GEO_LIST[0];
@@ -892,24 +987,29 @@ Return ONLY JSON with keys: subject, body, recipientName`,
   }
 
   // ── STEP 5: Send Daily Batch via Brevo ────────────
-  async function sendDailyBatch() {
+  async function sendDailyBatch(isAuto = false) {
     if (busy) return;
     const remaining = MAX_DAILY_EMAILS - sentToday;
     if (remaining <= 0) { addLog(`⏳ Daily limit of ${MAX_DAILY_EMAILS} reached`, "warn"); return; }
 
     const toSend = queue.filter(e => e.status === "queued" && e.leadEmail).slice(0, remaining);
-    if (!toSend.length) { addLog(`📭 No emails with valid addresses ready`, "warn"); return; }
+    if (!toSend.length) {
+      addLog(`📭 No emails with valid addresses ready`, "warn");
+      if (isAuto) lsSet(SK.lastAuto, todayStr()); // still stamp so we don't retry all day
+      return;
+    }
 
-    setBusy(`Sending ${toSend.length} email(s) via Brevo...`);
-    addLog(`📤 Sending batch: ${toSend.length} email(s) via Brevo`, "email");
+    setBusy(`${isAuto ? "🤖 Auto-sending" : "Sending"} ${toSend.length} email(s) via Brevo...`);
+    addLog(`📤 ${isAuto ? "Auto-send" : "Manual send"}: ${toSend.length} email(s) via Brevo`, "email");
 
     let updSent = [...sent], updQueue = [...queue], updLeads = [...leads];
 
     for (const email of toSend) {
       try {
-        const emailLead = leads.find(l => l.id === email.leadId);
-        await sendViaBrevo(brevoKey, email.leadEmail, email.recipientName || email.leadName, email.subject, email.body, emailLead?.report, emailLead?.audit, emailLead);
-        const sentItem = { ...email, status: "sent", sentDate: todayStr(), sentAt: new Date().toISOString(), followedUp: false };
+        const emailLead  = leads.find(l => l.id === email.leadId);
+        const sendResult = await sendViaBrevo(brevoKey, email.leadEmail, email.recipientName || email.leadName, email.subject, email.body, emailLead?.report, emailLead?.audit, emailLead);
+        const brevoMessageId = sendResult?.messageId || null;
+        const sentItem = { ...email, status: "sent", sentDate: todayStr(), sentAt: new Date().toISOString(), followedUp: false, brevoMessageId, eventStatus: "sent" };
         updSent  = [...updSent, sentItem];
         updQueue = updQueue.map(q => q.id === email.id ? { ...q, status: "sent" } : q);
         updLeads = updLeads.map(l => l.id === email.leadId ? { ...l, emailStatus: "sent" } : l);
@@ -919,8 +1019,62 @@ Return ONLY JSON with keys: subject, body, recipientName`,
 
     setSent(updSent); setQueue(updQueue); setLeads(updLeads);
     save(SK.sent, updSent); save(SK.queue, updQueue); save(SK.leads, updLeads);
+    if (isAuto) lsSet(SK.lastAuto, todayStr()); // stamp today so auto doesn't re-fire
     setBusy(null);
   }
+
+  // ── STEP 5b: Poll Brevo for email events ──────────
+  // Runs on page load and every 30 min — updates lead status + fires alerts
+  async function pollEmailEvents() {
+    const brevoKey = settings.brevoKey;
+    const waPhone  = settings.waPhone;
+    const waApiKey = settings.waApiKey;
+    if (!brevoKey) return;
+
+    const sentWithIds = sent.filter(e => e.brevoMessageId && !e.eventStatus?.includes("clicked"));
+    if (!sentWithIds.length) return;
+
+    addLog("🔄 Polling Brevo for email events...", "info");
+    let updSent = [...sent];
+
+    for (const email of sentWithIds) {
+      const events = await fetchBrevoEvents(brevoKey, email.brevoMessageId);
+      if (!events.length) continue;
+
+      // Pick the highest-priority event: clicked > opened > delivered > bounced
+      const priority = { clicked:4, opened:3, delivered:2, hardBounce:1, softBounce:1 };
+      const sorted   = [...events].sort((a,b) => (priority[b.event]||0) - (priority[a.event]||0));
+      const top      = sorted[0];
+      const newStatus = top.event === "hardBounce" || top.event === "softBounce" ? "bounced" : top.event;
+
+      const prev = email.eventStatus || "sent";
+      if (newStatus !== prev) {
+        // Update status in sent array
+        updSent = updSent.map(s => s.id === email.id ? { ...s, eventStatus: newStatus } : s);
+
+        // Admin email alert (only for opened + clicked)
+        if (newStatus === "opened" || newStatus === "clicked") {
+          const lead = leads.find(l => l.id === email.leadId);
+          await sendAdminAlert(brevoKey, newStatus, email.leadName, email.leadEmail, email.geo);
+          await sendWhatsAppAlert(waPhone, waApiKey, newStatus, email.leadName, email.geo);
+          addLog(`${newStatus === "clicked" ? "🖱️" : "👁️"} ${email.leadName} ${newStatus} your email!`, "success");
+        }
+        if (newStatus === "bounced") {
+          addLog(`⚠️ Bounced → ${email.leadName} (${email.leadEmail})`, "warn");
+        }
+      }
+    }
+
+    setSent(updSent); save(SK.sent, updSent);
+  }
+
+  // Poll on load + every 30 minutes
+  useEffect(() => {
+    if (!settings.brevoKey) return;
+    const timer = setTimeout(() => pollEmailEvents(), 5000); // 5s after load
+    const interval = setInterval(() => pollEmailEvents(), 30 * 60 * 1000); // every 30 min
+    return () => { clearTimeout(timer); clearInterval(interval); };
+  }, [settings.brevoKey, sent.length]);
 
   // ── STEP 6: Weekly Follow-ups ─────────────────────
   async function runWeeklyAudit() {
@@ -1023,6 +1177,9 @@ Return ONLY JSON: { subject: string, body: string }`,
           <button onClick={() => setShowSettings(true)} style={{ background: keysSet ? `${C.green}18` : `${C.warn}18`, border: `1px solid ${keysSet ? C.green : C.warn}`, borderRadius: 4, padding: "3px 10px", color: keysSet ? C.green : C.warn, fontFamily: font, fontSize: 10, cursor:"pointer" }}>
             {keysSet ? "✓ Keys Set" : "⚠️ Setup Keys"} ⚙️
           </button>
+          <button onClick={() => setAutoSendEnabled(p => !p)} style={{ background: autoSendEnabled ? `${C.green}18` : `${C.muted}18`, border: `1px solid ${autoSendEnabled ? C.green : C.muted}`, borderRadius: 4, padding: "3px 10px", color: autoSendEnabled ? C.green : C.muted, fontFamily: font, fontSize: 10, cursor:"pointer" }}>
+            {autoSendEnabled ? "🤖 Auto-Send ON" : "⏸ Auto-Send OFF"}
+          </button>
         </div>
       </div>
 
@@ -1109,13 +1266,58 @@ Return ONLY JSON: { subject: string, body: string }`,
         {/* EMAIL QUEUE */}
         {tab === "queue" && (
           <div>
+            {/* Auto-send status card */}
+            <Card style={{ marginBottom: 16, borderColor: autoSendEnabled ? `${C.green}40` : `${C.muted}30`, background: autoSendEnabled ? `${C.green}08` : C.card }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div>
+                  <div style={{ fontSize: 12, color: autoSendEnabled ? C.green : C.muted, fontWeight:"bold", marginBottom: 3 }}>
+                    {autoSendEnabled ? "🤖 Auto-Send is ON" : "⏸ Auto-Send is OFF"}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted }}>
+                    {autoSendEnabled
+                      ? `Sends up to ${MAX_DAILY_EMAILS} emails automatically when you open this page each day. Last auto: ${lsGet(SK.lastAuto, "never")}`
+                      : "Emails will only send when you click the button below manually."}
+                  </div>
+                </div>
+                <Btn size="sm" variant={autoSendEnabled ? "outline" : "ghost"} onClick={() => setAutoSendEnabled(p => !p)}>
+                  {autoSendEnabled ? "Turn OFF" : "Turn ON"}
+                </Btn>
+              </div>
+            </Card>
+
             <div style={{ display:"flex", alignItems:"center", gap: 12, marginBottom: 20, flexWrap:"wrap" }}>
               <Btn onClick={sendDailyBatch} disabled={!!busy || sentToday >= MAX_DAILY_EMAILS || !settings.brevoKey}>
                 📤 Send Today's Batch ({Math.max(0, MAX_DAILY_EMAILS - sentToday)} remaining)
               </Btn>
+              <Btn onClick={pollEmailEvents} disabled={!!busy || !settings.brevoKey} variant="outline">
+                🔄 Poll Events Now
+              </Btn>
               {sentToday >= MAX_DAILY_EMAILS && <span style={{ fontSize: 11, color: C.warn }}>⏳ Daily limit reached — resets tomorrow</span>}
               {!settings.brevoKey && <span style={{ fontSize: 11, color: C.warn }}>⚠️ Add Brevo key in Settings to send</span>}
             </div>
+
+            {/* Event summary mini-stats */}
+            {sent.length > 0 && (() => {
+              const counts = { delivered:0, opened:0, clicked:0, bounced:0 };
+              sent.forEach(e => { if (counts[e.eventStatus] !== undefined) counts[e.eventStatus]++; });
+              return (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:20 }}>
+                  {[
+                    { icon:"✅", label:"Delivered", val: counts.delivered, col: C.green   },
+                    { icon:"👁️", label:"Opened",    val: counts.opened,    col:"#a78bfa"  },
+                    { icon:"🖱️", label:"Clicked",   val: counts.clicked,   col:"#f472b6"  },
+                    { icon:"⚠️", label:"Bounced",   val: counts.bounced,   col: C.err     },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: C.dim, borderRadius:6, padding:"10px 8px", textAlign:"center", border:`1px solid ${s.val > 0 ? s.col+"40" : C.border}` }}>
+                      <div style={{ fontSize:18, marginBottom:3 }}>{s.icon}</div>
+                      <div style={{ fontSize:18, fontWeight:"bold", color: s.val > 0 ? s.col : C.muted }}>{s.val}</div>
+                      <div style={{ fontSize:10, color: C.muted }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             <div style={{ fontSize: 10, color: C.muted, marginBottom: 8 }}>QUEUED ({queuedCount})</div>
             {queue.filter(e => e.status === "queued").map(e => <QueueCard key={e.id} email={e} status="queued" />)}
             {queue.filter(e => e.status === "queued").length === 0 && <div style={{ color: C.muted, fontSize: 12, padding:"12px 0" }}>No emails queued.</div>}
@@ -1387,6 +1589,16 @@ function AuditCard({ lead }) {
 }
 
 function QueueCard({ email, status }) {
+  // Event status config — icon, label, colour
+  const EVENT_META = {
+    sent:      { icon:"📨", label:"SENT",      color: C.accent },
+    delivered: { icon:"✅", label:"DELIVERED", color: C.green  },
+    opened:    { icon:"👁️", label:"OPENED",    color: "#a78bfa" }, // purple — high value
+    clicked:   { icon:"🖱️", label:"CLICKED",   color: "#f472b6" }, // pink — hottest signal
+    bounced:   { icon:"⚠️", label:"BOUNCED",   color: C.err    },
+  };
+  const evMeta = EVENT_META[email.eventStatus] || EVENT_META["sent"];
+
   return (
     <Card>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap: 8 }}>
@@ -1398,13 +1610,25 @@ function QueueCard({ email, status }) {
             : <div style={{ color: C.err,   fontSize: 11, marginTop: 2 }}>⚠ No email address on file</div>}
           <div style={{ color: C.muted, fontSize: 11, marginTop: 4, fontStyle:"italic" }}>"{email.subject}"</div>
         </div>
-        <div style={{ flexShrink: 0 }}>
+        <div style={{ flexShrink: 0, textAlign:"right" }}>
           {status === "queued" && <Badge label="QUEUED" color={C.warn} />}
           {status === "sent" && (
-            <div style={{ textAlign:"right" }}>
-              <Badge label="SENT" color={C.green} />
-              {email.followedUp && <div style={{ fontSize: 10, color: C.green, marginTop: 3 }}>↳ Followed up</div>}
-              {!email.followedUp && email.sentDate && <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{email.sentDate}</div>}
+            <div>
+              {/* Live event status — updates as Brevo polls */}
+              <Badge label={`${evMeta.icon} ${evMeta.label}`} color={evMeta.color} />
+              {email.eventStatus === "opened" && (
+                <div style={{ fontSize: 10, color: "#a78bfa", marginTop: 3 }}>👁️ They saw it — follow up soon</div>
+              )}
+              {email.eventStatus === "clicked" && (
+                <div style={{ fontSize: 10, color: "#f472b6", marginTop: 3 }}>🔥 Hot lead — clicked your CTA!</div>
+              )}
+              {email.eventStatus === "bounced" && (
+                <div style={{ fontSize: 10, color: C.err, marginTop: 3 }}>❌ Invalid email address</div>
+              )}
+              {email.followedUp && <div style={{ fontSize: 10, color: C.green, marginTop: 3 }}>↳ Follow-up sent</div>}
+              {!email.followedUp && email.sentDate && (
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{email.sentDate}</div>
+              )}
             </div>
           )}
         </div>
