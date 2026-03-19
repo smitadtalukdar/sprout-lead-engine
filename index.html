@@ -345,6 +345,7 @@ function buildEmailHTML(body, report, audit, lead) {
   const pkgColor = pkg.includes("Starter") ? "#64748b" : pkg.includes("Enterprise") ? BRAND.navy : BRAND.green;
 
   return `<!DOCTYPE html>
+<head><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Montserrat:wght@300&display=swap" rel="stylesheet"></head>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Growth Audit — Sprout Growth Agency</title></head>
@@ -360,7 +361,7 @@ function buildEmailHTML(body, report, audit, lead) {
       <table cellpadding="0" cellspacing="0" border="0" width="100%" style="padding:20px 36px 16px;">
         <tr>
           <td style="vertical-align:middle;">
-            <table cellpadding="0" cellspacing="0" border="0"><tr><td style="vertical-align:middle;padding-right:14px;"><svg width="38" height="46" viewBox="0 0 36 44" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 40 C18 40 4 28 4 16 C4 8 10 4 18 4 C26 4 32 8 32 16" stroke="#8EC63F" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="18" cy="4" r="3" fill="#8EC63F"/><line x1="18" y1="7" x2="18" y2="40" stroke="#8EC63F" stroke-opacity="0.22" stroke-width="1"/></svg></td><td style="vertical-align:middle;"><div style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:600;color:#1B2B4B;line-height:1;letter-spacing:1px;">Sprout</div><div style="font-family:Arial,Helvetica,sans-serif;font-size:8px;font-weight:400;letter-spacing:5px;text-transform:uppercase;color:#2E9E7A;margin-top:5px;">Growth Agency</div></td></tr></table>
+            <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr><td style="vertical-align:middle;padding-right:15px;"><svg width="52" height="52" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><line x1="50" y1="22" x2="50" y2="87" stroke="#dbe5d8" stroke-width="1.5" stroke-linecap="round"/><path d="M 50 86 C 49 90, 53 91, 53 87" fill="none" stroke="#8cc63f" stroke-width="1.8" stroke-linecap="round"/><path d="M 45.5 18 C 12 22, 5 62, 50 94" fill="none" stroke="#8cc63f" stroke-width="3.5" stroke-linecap="round"/><path d="M 54.5 18 C 72 18, 83 23, 76 45" fill="none" stroke="#8cc63f" stroke-width="3.5" stroke-linecap="round"/><circle cx="50" cy="18" r="6.5" fill="#8cc63f"/></svg></td><td style="vertical-align:middle;"><div style="font-family:Georgia,'Times New Roman',serif;font-size:32px;font-weight:400;color:#1f2b44;line-height:0.9;letter-spacing:0.5px;margin-bottom:6px;">Sprout</div><div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:9px;color:#89c59f;letter-spacing:1.2px;text-transform:uppercase;font-weight:400;margin-left:2px;">Growth Agency</div></td></tr></table>
           </td>
           <td style="vertical-align:middle;text-align:right;">
             <div style="font-family:Arial,sans-serif;font-size:10px;color:${BRAND.navyMid};letter-spacing:0.12em;text-transform:uppercase;margin-bottom:4px;">Free Initial Report</div>
