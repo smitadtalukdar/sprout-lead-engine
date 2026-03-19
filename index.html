@@ -1422,6 +1422,9 @@ Return ONLY JSON: { subject: string, body: string }`,
               <Btn onClick={pollEmailEvents} disabled={!!busy || !settings.brevoKey} variant="outline">
                 🔄 Poll Events Now
               </Btn>
+              <Btn onClick={async () => { await sendTestEmail(); setTestEmailSent(true); }} disabled={!!busy || !settings.brevoKey} variant="ghost">
+                🧪 Send Test Email
+              </Btn>
               {sentToday >= MAX_DAILY_EMAILS && <span style={{ fontSize: 11, color: C.warn }}>⏳ Daily limit reached — resets tomorrow</span>}
               {!settings.brevoKey && <span style={{ fontSize: 11, color: C.warn }}>⚠️ Add Brevo key in Settings to send</span>}
             </div>
