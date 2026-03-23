@@ -809,20 +809,21 @@ function SproutLeadEngine() {
         content: `Search for 4 real, active ${currentInd.label} businesses in ${currentGeo.label}${currentGeo.state ? `, ${currentGeo.state}` : ""}, ${currentGeo.country}.
 
 Focus on small-to-medium independent businesses (not large chains) that could benefit from digital marketing.
+IMPORTANT: Only include businesses you are confident actually exist. Do NOT invent email addresses.
 
 For each, provide a JSON object with EXACTLY these keys:
 - name: string (business name)
 - type: string (specific type, e.g. "cloud kitchen", "luxury day spa")
-- website: string | null
-- email: string | null (public contact email only)
-- phone: string | null
+- website: string | null (real website URL if you know it, otherwise null — do NOT guess)
+- phone: string | null (real phone number if known, otherwise null)
 - description: string (1-2 sentences)
 - socialPresence: string (what platforms they're on, brief note)
 - estimatedSize: "micro" | "small" | "medium"
 
+DO NOT include an email field — emails will be found separately by scraping their website.
 Return ONLY a JSON array of 4 objects. No markdown, no preamble.`,
       }],
-      "You are a B2B lead researcher for a digital marketing agency targeting South Asia. Based on your training knowledge, generate realistic small-to-medium independent businesses. Include real-sounding names, plausible websites/emails, and accurate local context. Return ONLY valid JSON.");
+      "You are a B2B lead researcher for a digital marketing agency targeting South Asia. Only include businesses you are confident actually exist. Provide real website URLs where known. Never invent email addresses. Return ONLY valid JSON.");
 
       const list = safeJSON(extractText(data));
       if (Array.isArray(list) && list.length) {
@@ -832,7 +833,7 @@ Return ONLY a JSON array of 4 objects. No markdown, no preamble.`,
           geo: currentGeo.label, geoState: currentGeo.state || "", geoCountry: currentGeo.country,
           industry: currentInd.label,
           name: b.name || "Unknown", type: b.type || currentInd.label,
-          website: b.website || null, email: b.email || null, phone: b.phone || null,
+          website: b.website || null, email: null, phone: b.phone || null,  // email found by scraper, not AI
           description: b.description || "", socialPresence: b.socialPresence || "Unknown",
           estimatedSize: b.estimatedSize || "small",
           discoveredAt: new Date().toISOString(),
@@ -940,6 +941,188 @@ Return ONLY valid JSON, no markdown.`,
       } else { addLog(`⚠️ Report parse failed for ${lead.name}`, "warn"); }
     } catch (e) { addLog(`❌ Report error: ${e.message}`, "error"); }
     setBusy(null);
+  }
+
+  // ══════════════════════════════════════════════════════
+  // MULTI-SOURCE EMAIL FINDER — finds real emails by:
+  // 1. Scraping business website (homepage, /contact, /about)
+  // 2. Scraping Indian directories (Justdial, Sulekha, IndiaMart)
+  // 3. Groq knowledge about this specific business
+  // 4. MX domain verification on anything found
+  // 5. Manual fallback field if all sources fail
+  // ══════════════════════════════════════════════════════
+
+  // Shared: extract valid emails from HTML/text
+  function extractEmailsFromText(text) {
+    const pattern = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+    const found = [...new Set(text.match(pattern) || [])];
+    const blocklist = ["example.com","test.com","domain.com","email.com","noreply","no-reply",
+      "wordpress","woocommerce","shopify","squarespace","webflow","framer","sentry.io",
+      "google.com","facebook.com","twitter.com","instagram.com","schema.org","w3.org",
+      "cloudflare.com","jquery.com","bootstrap","fontawesome","gravatar","amazonaws.com",
+      "googleapis.com","gstatic.com","cdn.","assets.","static.","placeholder"];
+    return found.filter(e => !blocklist.some(b => e.toLowerCase().includes(b)));
+  }
+
+  // Shared: fetch page via CORS proxy
+  async function fetchViaProxy(url) {
+    try {
+      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxy, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.contents || null;
+    } catch { return null; }
+  }
+
+  // Prefer professional-looking contact emails
+  function pickBestEmail(emails) {
+    const preferred = emails.find(e =>
+      /^(info|contact|hello|support|sales|enquiry|enquiries|reach|connect|admin|office|mail|team)@/.test(e)
+    );
+    return preferred || emails[0];
+  }
+
+  // SOURCE 1: Scrape business website
+  async function source1_website(websiteUrl, businessName) {
+    if (!websiteUrl) return null;
+    let base = websiteUrl.startsWith("http") ? websiteUrl : "https://" + websiteUrl;
+    const pages = [base, base.replace(/\/+$/, "") + "/contact",
+                   base.replace(/\/+$/, "") + "/contact-us",
+                   base.replace(/\/+$/, "") + "/about"];
+    for (const url of pages) {
+      const html = await fetchViaProxy(url);
+      if (!html) continue;
+      const emails = extractEmailsFromText(html);
+      if (emails.length > 0) {
+        addLog(`✅ [Source 1] Found email on website: ${url.split("/").slice(0,3).join("/")}`, "info");
+        return pickBestEmail(emails);
+      }
+    }
+    return null;
+  }
+
+  // SOURCE 2: Indian business directories
+  async function source2_directories(businessName, geo, geoCountry) {
+    if (geoCountry !== "India") return null; // directories are India-specific
+    const searchTargets = [
+      `https://www.justdial.com/search?q=${encodeURIComponent(businessName + " " + geo)}`,
+      `https://www.sulekha.com/search?query=${encodeURIComponent(businessName)}&location=${encodeURIComponent(geo)}`,
+      `https://www.indiamart.com/search.mp?ss=${encodeURIComponent(businessName + " " + geo)}`,
+    ];
+    for (const url of searchTargets) {
+      const html = await fetchViaProxy(url);
+      if (!html) continue;
+      const emails = extractEmailsFromText(html);
+      // Filter for emails that plausibly belong to this business
+      const nameWords = businessName.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      const relevant = emails.filter(e => nameWords.some(w => e.toLowerCase().includes(w)));
+      if (relevant.length > 0) {
+        const src = url.includes("justdial") ? "Justdial" : url.includes("sulekha") ? "Sulekha" : "IndiaMart";
+        addLog(`✅ [Source 2] Found email on ${src}`, "info");
+        return pickBestEmail(relevant);
+      }
+      // Even without name match, any email on their listing page is likely theirs
+      if (emails.length > 0) {
+        const src = url.includes("justdial") ? "Justdial" : url.includes("sulekha") ? "Sulekha" : "IndiaMart";
+        addLog(`✅ [Source 2] Found email on ${src} (unverified match)`, "info");
+        return pickBestEmail(emails);
+      }
+    }
+    return null;
+  }
+
+  // SOURCE 3: Groq knowledge about this specific business
+  async function source3_groq(businessName, geo, geoState, geoCountry, businessType) {
+    try {
+      const data = await callGroq(apiKey, [{
+        role: "user",
+        content: `I need to find the real contact email for "${businessName}", a ${businessType} in ${geo}, ${geoState || ""}, ${geoCountry}.
+
+Do you have specific knowledge of this exact business and its contact email?
+- If YES and you are certain: return ONLY the email address, nothing else.
+- If NO or you are not sure: return ONLY the word "unknown".
+
+Do NOT guess or generate a plausible email. Only return an email if you have actual knowledge of this business.`
+      }], "You are a business directory. Only return a real email address if you have specific knowledge of it. Never invent or guess emails.");
+
+      const answer = extractText(data).trim().toLowerCase().replace(/['"\s]/g, "");
+      if (answer === "unknown" || answer === "" || !answer.includes("@")) return null;
+      // Basic sanity check
+      if (answer.includes("@") && answer.includes(".")) {
+        addLog(`✅ [Source 3] Groq has knowledge of ${businessName}'s email`, "info");
+        return answer;
+      }
+    } catch {}
+    return null;
+  }
+
+  // MASTER PIPELINE: runs all sources in order, verifies result
+  async function findLeadEmail(leadId) {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead || busy) return;
+    setBusy(`Finding real email for ${lead.name}...`);
+    addLog(`🔍 Starting multi-source email search for ${lead.name}...`, "info");
+
+    try {
+      let foundEmail = null;
+      let source = "";
+
+      // Source 1: Website scrape
+      if (lead.website) {
+        addLog(`📡 [Source 1] Scraping website...`, "info");
+        foundEmail = await source1_website(lead.website, lead.name);
+        if (foundEmail) source = "website";
+      }
+
+      // Source 2: Indian directories (if Source 1 failed)
+      if (!foundEmail) {
+        addLog(`📡 [Source 2] Checking Indian directories...`, "info");
+        foundEmail = await source2_directories(lead.name, lead.geo, lead.geoCountry);
+        if (foundEmail) source = "directory";
+      }
+
+      // Source 3: Groq knowledge (if Sources 1+2 failed)
+      if (!foundEmail) {
+        addLog(`📡 [Source 3] Asking Groq for known contact details...`, "info");
+        foundEmail = await source3_groq(lead.name, lead.geo, lead.geoState, lead.geoCountry, lead.type);
+        if (foundEmail) source = "groq_knowledge";
+      }
+
+      if (foundEmail) {
+        // MX verify whatever we found
+        const check = await verifyEmailDomain(foundEmail);
+        if (check.valid) {
+          const updated = leads.map(l => l.id === leadId
+            ? { ...l, email: foundEmail, emailFoundBy: source, emailStatus: "none" }
+            : l);
+          setLeads(updated); save(SK.leads, updated);
+          addLog(`✅ Email found for ${lead.name}: ${foundEmail} (via ${source})`, "success");
+        } else {
+          addLog(`⚠️ Found ${foundEmail} but failed MX check: ${check.reason}`, "warn");
+          // Still save it but flag it so user can verify manually
+          const updated = leads.map(l => l.id === leadId
+            ? { ...l, email: foundEmail, emailFoundBy: source + "_unverified" }
+            : l);
+          setLeads(updated); save(SK.leads, updated);
+        }
+      } else {
+        addLog(`⚠️ No email found for ${lead.name} across all sources — please enter manually`, "warn");
+        // Flag as needs_manual so the card shows the input field
+        const updated = leads.map(l => l.id === leadId ? { ...l, emailFoundBy: "needs_manual" } : l);
+        setLeads(updated); save(SK.leads, updated);
+      }
+    } catch (e) { addLog(`❌ Email search error for ${lead.name}: ${e.message}`, "error"); }
+    setBusy(null);
+  }
+
+  // Manual email save from lead card input field
+  function saveManualEmail(leadId, email) {
+    const updated = leads.map(l => l.id === leadId
+      ? { ...l, email: email.trim(), emailFoundBy: "manual", emailStatus: "none" }
+      : l);
+    setLeads(updated); save(SK.leads, updated);
+    addLog(`✏️ Manual email saved for ${leads.find(l=>l.id===leadId)?.name}: ${email.trim()}`, "success");
   }
 
   // ── Email validation: check if domain has MX records ─
@@ -1394,6 +1577,8 @@ Return ONLY JSON: { subject: string, body: string }`,
                 onAudit={() => runAudit(lead.id)}
                 onReport={() => generateReport(lead.id)}
                 onEmail={() => composeEmail(lead.id)}
+                onFindEmail={() => findLeadEmail(lead.id)}
+                onSaveManualEmail={(email) => saveManualEmail(lead.id, email)}
                 expanded={expanded === lead.id}
                 onToggle={() => setExpanded(expanded === lead.id ? null : lead.id)}
               />
@@ -1753,8 +1938,21 @@ Return ONLY JSON: { subject: string, body: string }`,
 // ═══════════════════════════════════════════════════
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════════════
-function LeadCard({ lead, busy, onAudit, onReport, onEmail, expanded, onToggle }) {
+function LeadCard({ lead, busy, onAudit, onReport, onEmail, onFindEmail, onSaveManualEmail, expanded, onToggle }) {
+  const { useState: useLocalState } = React;
+  const [manualEmail, setManualEmail] = useLocalState(lead.email || "");
   const emailStatusColor = lead.emailStatus === "sent" ? C.green : lead.emailStatus === "queued" ? C.warn : lead.emailStatus === "invalid" ? C.err : C.muted;
+
+  const emailSourceLabel = lead.emailFoundBy === "website" ? "🌐 scraped"
+    : lead.emailFoundBy === "directory" ? "📋 directory"
+    : lead.emailFoundBy === "groq_knowledge" ? "🤖 Groq"
+    : lead.emailFoundBy === "manual" ? "✏️ manual"
+    : lead.emailFoundBy?.includes("unverified") ? "⚠️ unverified"
+    : null;
+
+  const needsManual = lead.emailFoundBy === "needs_manual";
+  const hasEmail = !!lead.email;
+
   return (
     <Card style={{ cursor:"pointer" }}>
       <div onClick={onToggle} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap: 8 }}>
@@ -1766,8 +1964,14 @@ function LeadCard({ lead, busy, onAudit, onReport, onEmail, expanded, onToggle }
           </div>
           <div style={{ fontSize: 11, color: C.muted }}>{lead.type} · Est. size: {lead.estimatedSize}</div>
           {lead.website && <div style={{ fontSize: 11, color:"#60a5fa", marginTop: 2 }}>🌐 {lead.website}</div>}
-          {lead.email   ? <div style={{ fontSize: 11, color: C.green, marginTop: 2 }}>✉️ {lead.email}</div>
-                        : <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>✉️ No email found</div>}
+          <div style={{ fontSize: 11, marginTop: 2, display:"flex", alignItems:"center", gap: 6, flexWrap:"wrap" }}>
+            {hasEmail
+              ? <span style={{ color: C.green }}>✉️ {lead.email}</span>
+              : needsManual
+                ? <span style={{ color: C.warn }}>✉️ Enter email manually</span>
+                : <span style={{ color: C.muted }}>✉️ Email not yet found</span>}
+            {emailSourceLabel && <span style={{ fontSize: 10, color: C.muted, background: C.dim, padding:"1px 6px", borderRadius: 3 }}>{emailSourceLabel}</span>}
+          </div>
         </div>
         <span style={{ color: C.muted, flexShrink: 0, marginTop: 2 }}>{expanded ? "▲" : "▼"}</span>
       </div>
@@ -1776,6 +1980,40 @@ function LeadCard({ lead, busy, onAudit, onReport, onEmail, expanded, onToggle }
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
           {lead.description && <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{lead.description}</div>}
           {lead.socialPresence && <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>📱 Social: {lead.socialPresence}</div>}
+
+          {/* Email finder section */}
+          <div style={{ background: C.dim, borderRadius: 6, padding: 12, marginBottom: 14, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 10, color: C.muted, marginBottom: 8, letterSpacing:"0.08em" }}>EMAIL DISCOVERY</div>
+            {hasEmail ? (
+              <div style={{ display:"flex", alignItems:"center", gap: 8, flexWrap:"wrap" }}>
+                <span style={{ fontSize: 12, color: C.green }}>✅ {lead.email}</span>
+                {emailSourceLabel && <span style={{ fontSize: 10, color: C.muted }}>{emailSourceLabel}</span>}
+                <Btn size="sm" variant="ghost" onClick={onFindEmail} disabled={!!busy}>🔄 Re-search</Btn>
+              </div>
+            ) : needsManual ? (
+              <div>
+                <div style={{ fontSize: 11, color: C.warn, marginBottom: 8 }}>⚠️ All automated sources exhausted. Enter the email manually after checking Google/JustDial.</div>
+                <div style={{ display:"flex", gap: 8 }}>
+                  <input
+                    type="email"
+                    value={manualEmail}
+                    onChange={e => setManualEmail(e.target.value)}
+                    placeholder="contact@business.com"
+                    onClick={e => e.stopPropagation()}
+                    style={{ flex:1, background: C.surface, border:`1px solid ${C.border}`, borderRadius: 4, padding:"6px 10px", color: C.text, fontFamily: font, fontSize: 11 }}
+                  />
+                  <Btn size="sm" onClick={(e) => { e.stopPropagation(); onSaveManualEmail(manualEmail); }} disabled={!manualEmail.includes("@")}>
+                    💾 Save
+                  </Btn>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display:"flex", alignItems:"center", gap: 8, flexWrap:"wrap" }}>
+                <span style={{ fontSize: 11, color: C.muted }}>No email found yet</span>
+                <Btn size="sm" onClick={onFindEmail} disabled={!!busy}>🔍 Find Email (Auto)</Btn>
+              </div>
+            )}
+          </div>
 
           {lead.audit && (
             <div style={{ marginBottom: 14 }}>
@@ -1806,8 +2044,8 @@ function LeadCard({ lead, busy, onAudit, onReport, onEmail, expanded, onToggle }
             <Btn size="sm" onClick={onReport} disabled={!!busy || !lead.audit || !!lead.report} variant="outline">
               {lead.report ? "✓ Report Done" : "📄 Gen Report"}
             </Btn>
-            <Btn size="sm" onClick={onEmail} disabled={!!busy || !lead.report || lead.emailStatus !== "none"} variant="ghost">
-              {lead.emailStatus === "invalid" ? "❌ Invalid Email" : lead.emailStatus !== "none" ? `✓ ${lead.emailStatus}` : "✉️ Queue Email"}
+            <Btn size="sm" onClick={onEmail} disabled={!!busy || !lead.report || !lead.email || lead.emailStatus !== "none"} variant="ghost">
+              {lead.emailStatus === "invalid" ? "❌ Invalid Email" : lead.emailStatus !== "none" ? `✓ ${lead.emailStatus}` : !lead.email ? "⚠️ No Email Yet" : "✉️ Queue Email"}
             </Btn>
           </div>
         </div>
